@@ -1,0 +1,673 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>Digitas Connector Agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: premise + "what's theirs vs our add-ons"; mode tabs (Internal | External); chat left driving the mode's board right */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --surface-2:#eaeef4; --ink:#141b2b; --muted:#5a6478; --line:#d6dce6;
+  --accent:#2f4fd8; --accent-ink:#ffffff; --accent-soft:#e3e8ff;
+  --entry:#2f4fd8; --connect:#0f8a74; --connect-soft:#dff3ee; --later:#8a6a10; --later-soft:#f6ecd0; --off:#8b93a3; --off-soft:#eceff3;
+  --warn:#b4402a; --warn-soft:#fbe6e1; --user:#141b2b; --user-ink:#ffffff; --bar:#c9d2ff;
+  --display:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --body:"Inter",ui-sans-serif,system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1420; --surface:#171e2d; --surface-2:#1f2838; --ink:#e8ecf4; --muted:#9aa4b8; --line:#2c364a;
+  --accent:#7d93ff; --accent-ink:#0f1420; --accent-soft:#232d52;
+  --entry:#7d93ff; --connect:#4fd1b5; --connect-soft:#173a35; --later:#e2bf5c; --later-soft:#3a3218; --off:#7d8596; --off-soft:#232a38;
+  --warn:#f08a74; --warn-soft:#3a201b; --user:#e8ecf4; --user-ink:#0f1420; --bar:#34407a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1420; --surface:#171e2d; --surface-2:#1f2838; --ink:#e8ecf4; --muted:#9aa4b8; --line:#2c364a;
+  --accent:#7d93ff; --accent-ink:#0f1420; --accent-soft:#232d52;
+  --entry:#7d93ff; --connect:#4fd1b5; --connect-soft:#173a35; --later:#e2bf5c; --later-soft:#3a3218; --off:#7d8596; --off-soft:#232a38;
+  --warn:#f08a74; --warn-soft:#3a201b; --user:#e8ecf4; --user-ink:#0f1420; --bar:#34407a; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55}
+.wrap{max-width:1240px;margin:0 auto;padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:22px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.01em}
+h1{font-size:clamp(26px,3.6vw,38px);line-height:1.1}
+h2{font-size:19px} h3{font-size:15px}
+p{margin:0} a{color:var(--accent)}
+.eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.banner{font-size:12.5px;color:var(--muted);border:1px dashed var(--line);border-radius:8px;padding:8px 12px}
+header{display:grid;gap:10px}
+.premise{font-size:16px;max-width:76ch}
+.premise b{font-family:var(--display)}
+.stack{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:10px}
+@media (max-width:760px){.stack{grid-template-columns:1fr}}
+.layer{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:6px;align-content:start}
+.layer.ours{border-color:var(--accent)}
+.layer ul{margin:0;padding-left:18px;font-size:13.5px;display:grid;gap:3px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-weight:600;font-size:14.5px;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:10px 16px;cursor:pointer;display:grid;text-align:left}
+.tab small{font-weight:400;color:var(--muted);font-size:12px}
+.tab[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tab[aria-selected="true"] small{color:var(--accent-ink);opacity:.85}
+.layout{display:grid;grid-template-columns:390px minmax(0,1fr);gap:20px;align-items:start}
+@media (max-width:980px){.layout{grid-template-columns:1fr}}
+.chat{background:var(--surface);border:1px solid var(--line);border-radius:14px;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;height:min(84vh,820px);min-height:560px;position:sticky;top:max(12px,env(safe-area-inset-top,0px))}
+@media (max-width:980px){.chat{position:static;height:auto;min-height:0}}
+.chat-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.chat-head b{font-family:var(--display);font-size:15.5px}
+.mode{font-family:var(--mono);font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted)}
+.mode.live{background:var(--connect-soft);color:var(--connect)}
+.picks{padding:10px 12px;border-bottom:1px solid var(--line);display:grid;gap:6px}
+.plist{display:flex;flex-wrap:wrap;gap:6px}
+.pbtn{font:inherit;font-size:12.5px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;padding:6px 10px;cursor:pointer;text-align:left}
+.pbtn small{display:block;color:var(--muted);font-size:11px}
+.pbtn[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.coform{display:flex;gap:6px}
+.coform input{flex:1;min-width:0;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--accent);border-radius:8px;padding:8px 10px}
+.coform input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.log{overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;min-height:0}
+@media (max-width:980px){.log{max-height:50vh}}
+.msg{max-width:94%;padding:9px 12px;border-radius:12px;font-size:13.5px;white-space:pre-wrap;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--user);color:var(--user-ink);border-bottom-right-radius:4px}
+.msg.ai{align-self:flex-start;background:var(--surface-2);border-bottom-left-radius:4px}
+.msg .lbl{display:block;font-family:var(--mono);font-size:10.5px;color:var(--muted);margin-bottom:3px;letter-spacing:.05em;text-transform:uppercase}
+.msg.err{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.msg.critique{background:var(--later-soft)}
+.typing{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.composer{border-top:1px solid var(--line);padding:12px;display:grid;gap:8px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:inherit;font-size:12px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:999px;padding:4px 10px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.row{display:flex;gap:8px;align-items:flex-end}
+textarea{flex:1;min-width:0;resize:none;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px;max-height:160px}
+textarea:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{font:inherit;font-weight:600;font-size:14px;border-radius:10px;padding:10px 14px;cursor:pointer;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);white-space:nowrap}
+.btn.ghost{background:transparent;color:var(--accent)}
+.btn.small{font-size:12.5px;padding:6px 10px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.refine{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+select,input[type=number]{font:inherit;font-size:13px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 8px}
+input[type=number]{width:120px;font-family:var(--mono);font-variant-numeric:tabular-nums}
+input.pct{width:70px}
+.note{font-size:12px;color:var(--muted)}
+.board{display:grid;gap:18px;min-width:0}
+.progress{display:flex;flex-wrap:wrap;gap:6px}
+.progress span{font-family:var(--mono);font-size:11.5px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
+.progress span.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.support{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px}
+.support-head{display:grid;gap:3px}
+.support-head .eyebrow{color:var(--accent)}
+.addon{font-family:var(--mono);font-size:10.5px;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:1px 6px;justify-self:start}
+.empty{font-size:13.5px;color:var(--muted);border:1px dashed var(--line);border-radius:10px;padding:14px}
+.client-line{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.client-line b{font-family:var(--display);font-size:20px}
+.tag{font-family:var(--mono);font-size:11px;border-radius:6px;padding:2px 8px;background:var(--surface-2);color:var(--muted)}
+.tag.ai{background:var(--accent-soft);color:var(--accent)}
+.diagnosis{border-left:3px solid var(--warn);padding:10px 14px;background:var(--bg);border-radius:0 10px 10px 0;display:grid;gap:4px}
+.needs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.need{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:4px}
+.need .k{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}
+.need.stated .k{color:var(--entry)} .need.hidden .k{color:var(--connect)}
+.need p{font-size:13.5px}
+.capmap{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+@media (max-width:1200px){.capmap{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.capmap{grid-template-columns:1fr}}
+.cap{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start;min-width:0}
+.cap .top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.cap .step{font-family:var(--mono);font-size:12px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);color:var(--muted);flex:none}
+.pill{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px}
+.cap.entry{border-color:var(--entry)} .cap.entry .pill{background:var(--accent-soft);color:var(--entry)} .cap.entry .step{background:var(--entry);color:var(--accent-ink)}
+.cap.connect .pill{background:var(--connect-soft);color:var(--connect)} .cap.connect .step{background:var(--connect);color:var(--bg)}
+.cap.later .pill{background:var(--later-soft);color:var(--later)}
+.cap.off{opacity:.7} .cap.off .pill{background:var(--off-soft);color:var(--off)}
+.cap h3{font-size:14px} .cap p{font-size:13px} .cap .why{color:var(--muted);font-size:12px}
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:540px;font-size:13.5px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface-2)}
+tr:last-child td{border-bottom:0}
+td.dim{font-weight:600;width:22%} td.sp{color:var(--muted)}
+td.num,th.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+tr.total td{font-weight:600;background:var(--surface-2)}
+.proof{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px}
+.pr{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start}
+.pr .res{font-family:var(--display);font-weight:600;font-size:15px}
+.pr .rel{font-size:13px}
+.src{font-size:11.5px;color:var(--muted)}
+.opener{font-family:var(--display);font-size:18px;line-height:1.4;font-weight:500}
+.ladder{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.ladder{grid-template-columns:1fr}}
+.rung{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start}
+.rung.mid{border-color:var(--accent)}
+.rung .wk{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.rung .fee{font-family:var(--mono);font-size:14px;font-variant-numeric:tabular-nums}
+.rung ul{margin:0;padding-left:18px;font-size:13px;display:grid;gap:3px}
+.stages{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.stages{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:480px){.stages{grid-template-columns:1fr}}
+.stage{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:6px;align-content:start}
+.stage .wk{font-family:var(--mono);font-size:11px;color:var(--accent)}
+.stage p{font-size:13px;color:var(--muted)}
+.stage .gets{font-size:12.5px;color:var(--ink);border-top:1px solid var(--line);padding-top:6px}
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+@media (max-width:640px){.two{grid-template-columns:1fr}}
+.side{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:8px;align-content:start}
+.side ul,ol.plain,ul.plain{margin:0;padding-left:18px;display:grid;gap:4px;font-size:13.5px}
+.decision{background:var(--connect-soft);border-radius:10px;padding:12px 14px;font-size:14px}
+.rank{display:grid;gap:8px}
+.rk{display:grid;grid-template-columns:28px 170px minmax(0,1fr) 56px;gap:10px;align-items:center;padding:10px 12px;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+@media (max-width:640px){.rk{grid-template-columns:28px minmax(0,1fr) 56px}.rk .why{grid-column:2 / -1}}
+.rk .n{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.rk b{font-family:var(--display)}
+.rk .why{font-size:12.5px;color:var(--muted)}
+.rk .why .role{color:var(--ink)}
+.rk .score{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:14px;text-align:right}
+.meter{height:6px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin-top:6px}
+.meter i{display:block;height:100%;background:var(--accent)}
+.rk.top{border-color:var(--accent)}
+.sub{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+.raci td.c{font-family:var(--mono);font-size:12.5px;text-align:center}
+.raci td.R{color:var(--accent);font-weight:600} .raci td.A{color:var(--connect);font-weight:600}
+.split-bar{display:flex;height:22px;border-radius:6px;overflow:hidden;border:1px solid var(--line)}
+.split-bar span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.feerow{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.contract{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:16px;display:grid;gap:12px;font-size:13.5px}
+.contract h3{font-size:14px}
+.contract .cl{display:grid;gap:3px}
+.copyrow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.layout.solo{grid-template-columns:1fr}.layout.solo .chat{display:none}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:760px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;display:grid;gap:2px}
+.kpi b{font-family:var(--display);font-size:24px;font-variant-numeric:tabular-nums}
+.kpi.hi{border-color:var(--connect);background:var(--connect-soft)}
+.inputs{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:8px 16px}
+.inp{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:13px;padding:6px 0;border-bottom:1px dashed var(--line)}
+.funnel{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+@media (max-width:640px){.funnel{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.fstep{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;gap:2px}
+.fstep b{font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums}
+td.neg{color:var(--warn)} td.pos{color:var(--connect)}
+.sources{display:grid;gap:4px;font-size:12.5px}
+footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
+</style>
+
+<div class="wrap">
+  <p class="banner">Student prototype for BUS 365 (Team Rhea #2), not a Digitas product. It shows an agent Digitas could build on its own Digitas AI platform. Don't enter confidential information. Company facts come from cited public sources. Fees, splits and targets are proposals to validate. Contract text is a starting template, not legal advice.</p>
+
+  <header>
+    <span class="eyebrow">Digitas AI add-on · working prototype</span>
+    <h1>Digitas Connector Agent</h1>
+    <p class="premise"><b>Internal:</b> ranks which Publicis sister agencies to team with on an opportunity, splits the tasks and the revenue, and drafts the joint contract. <b>External:</b> turns a client's problem into a pitch outline backed by past proof and a trial the client can test before committing.</p>
+    <div class="stack">
+      <div class="layer"><span class="eyebrow">What Digitas already has</span><ul><li>Digitas AI platform and its agent management system</li><li>Client data, case studies and team availability</li><li>Business development team running outreach</li></ul></div>
+      <div class="layer ours"><span class="eyebrow">Our add-ons (this prototype)</span><ul><li>Sister-agency ranking with visible scoring weights</li><li>Task split (who's responsible, who approves) and revenue split calculator</li><li>Joint contract template with roles, credit and dispute steps</li><li>Pitch outline and three-step trial ladder</li><li>Self-critique loop that reviews and fixes its own output</li></ul></div>
+    </div>
+  </header>
+
+  <div class="tabs" role="tablist" aria-label="Agent mode">
+    <button class="tab" role="tab" id="tab-internal" aria-selected="true" type="button">Internal<small>Team with sister agencies</small></button>
+    <button class="tab" role="tab" id="tab-external" aria-selected="false" type="button">External<small>Pitch a client</small></button>
+    <button class="tab" role="tab" id="tab-roi" aria-selected="false" type="button">Budget &amp; ROI<small>Spend $250K, get what back</small></button>
+  </div>
+
+  <div class="layout">
+    <aside class="chat" aria-label="Agent chat">
+      <div class="chat-head">
+        <div style="display:grid;gap:2px"><b id="chatTitle">Connector agent</b><span class="note" id="chatSub">Internal mode</span></div>
+        <span class="mode" id="mode">Checking AI…</span>
+      </div>
+      <div class="picks"><form class="coform" id="coForm"><input id="co" type="text" placeholder="Type any company, e.g. Nike" aria-label="Company name"><button class="btn small" type="submit">Break it down</button></form><span class="eyebrow" id="picksLabel">Examples</span><div class="plist" id="plist"></div></div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <div class="composer">
+        <div class="chips" id="chips"></div>
+        <form class="row" id="form">
+          <textarea id="input" rows="2" aria-label="Message" placeholder="Describe an opportunity or ask for a change…"></textarea>
+          <button class="btn" id="send" type="submit">Send</button>
+        </form>
+        <div class="refine">
+          <button class="btn ghost small" id="refine" type="button">Critique and improve</button>
+          <label class="note" for="rounds">Rounds</label>
+          <select id="rounds"><option>1</option><option selected>2</option><option>3</option></select>
+        </div>
+        <p class="note" id="aiNote">Live AI. Check every number before using it.</p>
+      </div>
+    </aside>
+    <main class="board" id="board" aria-label="Agent output"></main>
+  </div>
+
+  <footer>
+    <span>Ranking score = 50% capability fit + 30% existing client relationship + 20% low overlap with Digitas. Weights are a proposal Digitas would tune.</span>
+    <span>Digitas proof: B&amp;T Agency Scorecard 2026; LBB Online, Oct. 2024; Campaign US, c. 2022 and 2025. Sister-agency roles reflect public Publicis Groupe descriptions.</span>
+  </footer>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt=n=>"$"+Math.round(n).toLocaleString("en-US");
+const k=n=>typeof n==="number"?"$"+Math.round(n/1000)+"K":esc(n);
+const COLORS=["var(--accent)","var(--connect)","var(--later)","var(--warn)","var(--off)","var(--entry)"];
+
+const AGENCIES={"Saatchi & Saatchi":"Brand creative","Leo":"Brand creative","Publicis Sapient":"Technology and platforms","Epsilon":"Data, identity and CRM technology","Starcom":"Media planning and buying","Zenith":"Media planning and buying","Spark Foundry":"Media planning and buying","Performics":"Search and performance","Publicis Commerce":"Retail and commerce media","MSL":"Public relations"};
+const CAPS=["Creative Experiences","Integrated Media","Addressable Relationships","Total Commerce","Social Transformation"];
+const CAP_NOTE={"Creative Experiences":"Brand, campaigns, content","Integrated Media":"Planning, buying, performance","Addressable Relationships":"CRM, loyalty, first-party data","Total Commerce":"Retail media, e-commerce","Social Transformation":"Social, creators, community"};
+const STATUS={entry:"Lead with",connect:"Connect in trial",later:"Add later",off:"Not needed"};
+const STAGES=["Analyze the problem","Develop targeted strategy","Launch pilot","Present results"];
+const PROOF={
+  exetel:{client:"Exetel (Australia)",result:"4.2 months of sales in 30 days; cost per order down 79%",source:"B&T Agency Scorecard 2026 (self-reported)"},
+  mcd_crm:{client:"McDonald's Australia",result:"40% repeat purchase on a CRM campaign; McWings sales 50% above projections in week one",source:"B&T Agency Scorecard 2026 (self-reported)"},
+  mcd_keep:{client:"McDonald's Australia",result:"Kept the CRM account after a pitch against Accenture Song",source:"LBB Online, Oct. 2024"},
+  aldi:{client:"ALDI Australia",result:"About 300,000 sessions in four months",source:"B&T Agency Scorecard 2026 (self-reported)"},
+  gumtree:{client:"Gumtree (Australia)",result:"Started with CRM in 2025, added all media planning and buying in 2026",source:"B&T Agency Scorecard 2026"},
+  ncl:{client:"Norwegian Cruise Line",result:"Named global media lead, replacing eight agency relationships",source:"Campaign US, c. 2022"},
+  retention:{client:"Digitas overall, 2024",result:"91% client retention, 27 new clients, 12% growth",source:"Campaign US, 2025 (self-reported)"}
+};
+
+/* ---------- Internal example ---------- */
+const INT_EXAMPLES=[
+ {id:"pepsico",name:"PepsiCo: One PepsiCo",sub:"Real · Publicis win, Sept. 2026",
+  brief:"Publicis Groupe just became PepsiCo's lead global media partner (estimated $1.7B account, 200+ markets, brands like Pepsi, Gatorade and Lay's), replacing Omnicom's OMD after a media capabilities review. The 'One PepsiCo' model integrates media strategy, planning, activation, data, connected identity and technology. PepsiCo is shifting to social-first, creator-led, AI-powered marketing. Omnicom keeps creative, sports and PR. Which Publicis agencies should Digitas team with, and where does Digitas fit?",
+  sources:[["Mediaweek: Publicis takes PepsiCo's $1.7bn media account, Sept. 2, 2026","https://mediaweek.com.au/agencies/publicis-takes-pepsico-s-us-1-7bn-media-account-from-omnicom"],["Marketing Dive: PepsiCo hands global media to Publicis, Sept. 3, 2026","https://www.marketingdive.com/news/pepsico-hands-global-media-to-publicis-amid-transformation-at-cpg-giant/829556/"]],
+  board:{
+   opportunity:{client:"PepsiCo (One PepsiCo)",source:"Publicis won global media, Sept. 2026; Omnicom keeps creative, sports and PR",need:"Connect media, data, identity and technology across 200+ markets, and shift to social-first, creator-led, AI-powered marketing"},
+   ranking:[
+    {agency:"Epsilon",fit:5,relationship:2,overlap:2,role:"Connected identity and data",why:"Identity and data are named in the One PepsiCo scope."},
+    {agency:"Starcom",fit:5,relationship:2,overlap:3,role:"Global media planning and activation",why:"Core of the remit. Publicis has not said which media agency leads, so this is an assumption."},
+    {agency:"Publicis Sapient",fit:4,relationship:2,overlap:1,role:"AI and technology operating model",why:"The scope includes technology and an AI-powered shift."},
+    {agency:"Publicis Commerce",fit:4,relationship:1,overlap:3,role:"Commerce media for snack and drink brands",why:"Retail media matters for brands sold in stores."},
+    {agency:"Spark Foundry",fit:3,relationship:1,overlap:4,role:"Second media agency",why:"Overlaps with the lead media agency; not recommended."}],
+   lead:{agency:"Starcom (assumed)",why:"Media is the core of the win, so the media agency leads. Digitas owns social-first and creator-led programs and connects them to media and data."},
+   workstreams:[
+    {name:"Global media planning and activation",responsible:"Starcom",accountable:"Starcom",consulted:"Digitas",share:45},
+    {name:"Connected identity and data",responsible:"Epsilon",accountable:"Starcom",consulted:"Digitas",share:20},
+    {name:"Social-first and creator-led programs",responsible:"Digitas",accountable:"Digitas",consulted:"Starcom",share:15},
+    {name:"Commerce media for retail brands",responsible:"Publicis Commerce",accountable:"Starcom",consulted:"Digitas",share:10},
+    {name:"AI and technology operating model",responsible:"Publicis Sapient",accountable:"Starcom",consulted:"Epsilon",share:10}],
+   fee:20000000, feeNote:"Illustrative fee only. The $1.7B figure is estimated media spend, not agency fees; neither is a reported Digitas number.",
+   contract:[
+    {title:"Project scope and objectives",text:"Agencies: Starcom (assumed lead), Epsilon, Publicis Sapient, Publicis Commerce and Digitas. Client: PepsiCo. Objective: run One PepsiCo media and shift to social-first, creator-led, AI-powered marketing. Deliverables: per the task split. Timeline: [start] to [end], by market wave."},
+    {title:"Lead agency and responsibilities",text:"[Lead media agency] leads the account. Each workstream's responsible and accountable agency follows the task split. Digitas is responsible for social-first and creator-led programs and is consulted on media, data and commerce."},
+    {title:"Client ownership and revenue allocation",text:"The lead agency manages the PepsiCo relationship; Digitas attends planning meetings for its workstream. Fees follow the revenue table. Case studies and awards credit every agency with a responsible role."},
+    {title:"Communication and decision-making",text:"Weekly joint status meeting and one shared plan per market wave. The accountable agency approves its workstream. Omnicom's creative, sports and PR teams are briefed through the lead agency only."},
+    {title:"Dispute resolution",text:"Scope disagreements go to the lead agency's account director within two business days, then to agency managing directors, then to the Publicis PepsiCo client lead."},
+    {title:"Approvals and sign-off",text:"Signed by an account lead and a finance lead from each agency before work starts. Signatures: ____ (lead agency) ____ (Epsilon) ____ (Publicis Sapient) ____ (Publicis Commerce) ____ (Digitas)."}],
+   kickoff:["Confirm which Publicis media agency leads One PepsiCo","Agree on the task split and sign the template","Set the working rules with Omnicom's creative team","Pick the first market wave and KPIs"],
+   risks:["Publicis has not named the lead agency; the plan must be checked against the real team.","Social and creator work may already sit with another agency.","Omnicom still holds creative, so creator content needs a clear handoff."]}},
+ {id:"saatchi",name:"Saatchi & Saatchi brings a retail client",sub:"Hypothetical scenario",
+  brief:"Saatchi & Saatchi is the creative agency for a national home-goods retailer (example client). The client wants its holiday campaign to bring back lapsed loyalty members; repeat purchase fell last year. Saatchi owns the client relationship and the campaign idea. The client has a loyalty program with about 4M members but no one turns member data into personalized offers. Estimated joint fee: $1.2M.",
+  board:{
+   opportunity:{client:"National home-goods retailer (example)",source:"Referred by Saatchi & Saatchi",need:"Holiday campaign that brings back lapsed loyalty members"},
+   ranking:[
+    {agency:"Saatchi & Saatchi",fit:5,relationship:5,overlap:1,role:"Campaign idea and brand creative",why:"Owns the client and the creative brief."},
+    {agency:"Epsilon",fit:5,relationship:3,overlap:2,role:"Member data matching and identity",why:"Turns 4M member records into usable audiences."},
+    {agency:"Starcom",fit:3,relationship:2,overlap:3,role:"Paid media to lapsed members",why:"Only needed if paid reach is in scope."},
+    {agency:"Publicis Commerce",fit:3,relationship:1,overlap:3,role:"Retailer media and site promotions",why:"Useful if the client sells through marketplaces."},
+    {agency:"Leo",fit:2,relationship:1,overlap:5,role:"Second creative agency",why:"Overlaps with Saatchi; not recommended."}],
+   lead:{agency:"Saatchi & Saatchi",why:"Owns the relationship and the campaign; Digitas leads member personalization."},
+   workstreams:[
+    {name:"Campaign idea and creative",responsible:"Saatchi & Saatchi",accountable:"Saatchi & Saatchi",consulted:"Digitas",share:40},
+    {name:"Member segments and personalized offers",responsible:"Digitas",accountable:"Digitas",consulted:"Epsilon",share:30},
+    {name:"Data matching and identity",responsible:"Epsilon",accountable:"Digitas",consulted:"Saatchi & Saatchi",share:15},
+    {name:"Measurement and reporting",responsible:"Digitas",accountable:"Saatchi & Saatchi",consulted:"Epsilon",share:10},
+    {name:"Program management",responsible:"Saatchi & Saatchi",accountable:"Saatchi & Saatchi",consulted:"Digitas",share:5}],
+   fee:1200000,
+   contract:[
+    {title:"Project scope and objectives",text:"Agencies: Saatchi & Saatchi, Digitas and Epsilon. Client: [Client]. Objective: bring back lapsed loyalty members during the holiday campaign. Deliverables: campaign creative, member segments and personalized offers, data matching, a joint results report. Timeline: [start] to [end]."},
+    {title:"Lead agency and responsibilities",text:"Saatchi & Saatchi is lead agency (top-ranked partner and client owner). Each workstream's responsible and accountable agency follows the task split. Work outside it needs a written change request."},
+    {title:"Client ownership and revenue allocation",text:"Saatchi & Saatchi manages the client relationship; Digitas joins all strategy meetings. Fees are split by the revenue table. Awards and case studies credit every agency with a responsible role."},
+    {title:"Communication and decision-making",text:"One weekly joint status meeting and one shared plan. The accountable agency makes the final call on its workstream. The client sees one team and one point of contact."},
+    {title:"Dispute resolution",text:"Scope disagreements go to the lead agency's account director within two business days, then to the agencies' managing directors, then to the Publicis client lead. Either agency may exit a workstream with 30 days' notice and a handover."},
+    {title:"Approvals and sign-off",text:"Signed by an account lead from each agency and by each agency's finance lead for the revenue split, before the joint contract goes to the client. Signatures: ____ (Saatchi & Saatchi) ____ (Digitas) ____ (Epsilon)."}],
+   kickoff:["Confirm who talks to the client and when","Agree on the task split and sign the template","Set the shared KPI dashboard","Book the weekly joint status meeting"],
+   risks:["Saatchi may see Digitas's personalization work as part of its own scope.","Member data may need cleanup before offers work.","Revenue shares need sign-off from each agency's finance lead."]}}
+];
+
+/* ---------- External prospects ---------- */
+const PROSPECTS=[
+ {id:"supergoop",name:"Supergoop!",sub:"Win-back · real case",
+  facts:["Supergoop! named Digitas U.S. media agency of record after a competitive pitch (c. 2024): search, social, display, video, retail strategy, influencer, data.","On April 29, 2026, Supergoop! named January Digital media agency of record, consolidating DTC, retail and marketplace for the first time.","CMO Lauren Weinberg wanted a partner to \"connect media across our entire business\" and more rigor in measurement; goals include reaching its existing loyal audience.","Unseen Sunscreen SPF 50 is the hero product. The release does not name the agency replaced."],
+  sources:[["MediaPost: Digitas named media AOR for Supergoop!","https://www.mediapost.com/publications/article/392988/digitas-named-media-aor-for-supergoop.html"],["Business Wire: Supergoop! names January Digital, Apr. 29, 2026","https://www.businesswire.com/news/home/20260429710847/en/"]]},
+ {id:"popeyes",name:"Popeyes",sub:"Proactive · QSR",
+  facts:["U.S. comparable sales fell 6.5% in Q1 2026, its worst quarter in years.","In July 2026 it split work across specialists: Anomaly (creative), LaForce (communications), Massive Rocket (data and CRM), Angry Butterfly (Canada creative).","Parent RBI's directives: better in-restaurant execution, focus on core items like tenders and sandwiches, consistent affordability messaging.","CMO Matt Rubin wants brand character delivered \"consistently for every guest, every visit.\" Media agency not named."],
+  sources:[["Marketing Dive, July 28, 2026","https://www.marketingdive.com/news/popeyes-spices-up-agency-roster-to-deliver-better-brand-consistency/826332/"]]},
+ {id:"hrblock",name:"H&R Block",sub:"Open review · tax",
+  facts:["Agency review in progress (Sept.–Oct. 2026); scope not public.","VaynerMedia has handled social and, since August 2025, media.","Tax season (roughly January to April) is the peak period."],
+  sources:[["Agency Mania, Sept.–Oct. 2026","https://agencymania.com/agency-industry-news-september-october-2026-volume-90/"],["Adweek: H&R Block and VaynerMedia","https://www.adweek.com/agencies/vaynermedia-becomes-social-and-media-aor-for-hr-block/"]]}
+];
+
+const SUPERGOOP={
+ client:{name:"Supergoop!",industry:"Sunscreen and skincare (DTC, retail, marketplace)",ask:"Win back the relationship by owning the loyal customer, which the new media agency doesn't cover"},
+ diagnosis:"Digitas was hired for media alone and judged as a media specialist. The client then picked a partner promising to connect channels and measure impact. That partner buys media, but nothing announced covers CRM or the \"existing loyal audience\" the CMO named.",
+ needs:[{type:"stated",need:"Connect media across DTC, retail and marketplace"},{type:"stated",need:"More rigor in measuring impact"},{type:"stated",need:"Reach its existing loyal audience better"},{type:"hidden",need:"A repeat-purchase program that works with the new media agency (to verify)"}],
+ capabilities:[
+  {name:"Addressable Relationships",status:"entry",step:1,link:"Repeat-buyer program for Unseen Sunscreen customers: replenishment timing, email and SMS, member offer.",why:"The goal the CMO named that media doesn't cover."},
+  {name:"Total Commerce",status:"connect",step:2,link:"Send loyal buyers to where they shop, including Amazon and retail partners; measure sell-through.",why:"Sales run across DTC, retail and marketplace."},
+  {name:"Integrated Media",status:"later",step:null,link:"Share audiences with January Digital now; compete for media at the next review.",why:"Work alongside the current media agency."},
+  {name:"Social Transformation",status:"later",step:null,link:"Creator content for replenishment moments.",why:"Useful at scale."},
+  {name:"Creative Experiences",status:"off",step:null,link:"Not needed for the trial.",why:"Existing brand assets are enough."}],
+ comparison:[
+  {dimension:"Who owns the loyal customer",specialists:"Nobody named; media buys reach",digitas:"Digitas owns retention and shares audiences with media"},
+  {dimension:"Measurement",specialists:"Media results by channel",digitas:"Repeat purchase and sell-through together"},
+  {dimension:"Client effort",specialists:"Brand team connects CRM and media itself",digitas:"Digitas lead coordinates both"}],
+ proof:[{id:"mcd_crm",relevance:"CRM tied to a launch drove 40% repeat purchase."},{id:"gumtree",relevance:"Start with CRM, then earn media with results."},{id:"mcd_keep",relevance:"Digitas's CRM practice has beaten larger rivals."}],
+ opener:"You told the market you want to reach your loyal customers better. Your new media partner will find new ones. Let us prove how much more your existing ones will buy.",
+ ladder:{
+  discovery:{weeks:"2 weeks",fee:15000,deliverables:["Repeat-buyer diagnosis from purchase data","Integration map: CRM, commerce and media","Trial plan with KPIs and holdout design"]},
+  pilot:{name:"Loyal Customer Sprint",weeks:8,fee_low:50000,fee_high:75000,focus:"Does a replenishment program for repeat Unseen Sunscreen buyers, timed with January Digital's media, raise repeat purchase versus a holdout group?",
+   stages:[
+    {weeks:"Weeks 1–2",what:"Define repeat-buyer segments, set a holdout, agree on shared metrics with January Digital.",client_receives:"Segment map and measurement plan"},
+    {weeks:"Weeks 3–4",what:"Build replenishment email and SMS flows and a member offer.",client_receives:"Program plan for approval"},
+    {weeks:"Weeks 5–7",what:"Run the program; the holdout gets standard messages.",client_receives:"Weekly repeat-purchase dashboard"},
+    {weeks:"Week 8",what:"Compare test vs. holdout across DTC and, where possible, retail.",client_receives:"Results readout and 12-month plan"}],
+   kpis:[{metric:"90-day repeat purchase rate",baseline:"Client to provide",target:"+10% vs. holdout"},{metric:"Revenue per repeat customer",baseline:"Client to provide",target:"+8% vs. holdout"},{metric:"Replenishment opt-in rate",baseline:"Client to provide",target:"15% of eligible buyers"}]},
+  partnership:"If the trial beats the holdout, Digitas becomes CRM and loyalty agency of record; discovery and pilot fees are credited to year one.",
+  referral:"Clients referred by a Publicis sister agency get the discovery trial at 50% off."},
+ benefits_client:["Tests the loyal-audience goal without changing media agencies","Small first step: a two-week discovery","Fees credited to year one"],
+ benefits_digitas:["Re-enters a former client through its own stated goal","Proves connected work next to a rival agency","Sets up a media bid at the next review"],
+ implementation:{team:[{role:"Business development lead",does:"Reopens the relationship through former contacts"},{role:"CRM strategy director",does:"Leads the trial and readout"},{role:"Analytics lead",does:"Holdout design and shared measurement"}],outreach:["Warm introductions through the Digitas team that ran the account","One-page point of view quoting the CMO's own goal","Offer a working session, not a pitch"],verify:["Who owns CRM today","Whether retail partners share sell-through data","January Digital's contract scope"]},
+ risks:["January Digital may see Digitas as a threat.","Retail sell-through data may be slow to arrive.","Supergoop! may not reopen a relationship it just changed."]
+};
+
+/* ---------- State ---------- */
+let mode="internal", sampleFn=null, live=false, busy=false;
+const S={internal:{board:null,messages:[],source:"example",pick:null,log:[]},external:{board:null,messages:[],source:"example",pick:null,log:[]}};
+const cur=()=>S[mode];
+
+function addMsg(role,text,cls,save=true){
+  const d=document.createElement("div"); d.className="msg "+(role==="user"?"user":"ai")+(cls?" "+cls:"");
+  if(role!=="user"){const l=document.createElement("span");l.className="lbl";l.textContent=cls==="err"?"Error":cls==="critique"?"Self-critique":"Agent";d.appendChild(l);}
+  d.appendChild(document.createTextNode(text)); $("#log").appendChild(d); $("#log").scrollTop=$("#log").scrollHeight;
+  if(save&&cls!=="typing") cur().log.push({role,text,cls}); return d;
+}
+function redrawLog(){ $("#log").innerHTML=""; cur().log.forEach(m=>addMsg(m.role,m.text,m.cls,false)); }
+function setChips(list){ $("#chips").innerHTML=list.map(t=>`<button class="chip" type="button">${esc(t)}</button>`).join(""); document.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>send(b.textContent))); }
+
+/* ---------- Internal render ---------- */
+function score(r){ return Math.round((0.5*r.fit+0.3*r.relationship+0.2*(5-r.overlap))/5*100); }
+function renderInternal(){
+  const b=cur().board; const empty=t=>`<p class="empty">${t}</p>`;
+  if(!b){ $("#board").innerHTML=`<section class="support">${empty("Describe an opportunity in the chat: the client, which sister agency is involved, what the client needs, and a rough fee. Or pick the example.")}</section>`; return; }
+  const ranked=[...(b.ranking||[])].map(r=>({...r,s:score(r)})).sort((a,c)=>c.s-a.s);
+  const rank=ranked.map((r,i)=>`<div class="rk ${i===0?"top":""}"><span class="n">${i+1}</span><div><b>${esc(r.agency)}</b><div class="sub">${esc(AGENCIES[r.agency]||"")}</div><div class="meter" aria-hidden="true"><i style="width:${r.s}%"></i></div></div><div class="why"><span class="role">${esc(r.role)}.</span> ${esc(r.why)}<div class="sub">Fit ${r.fit}/5 · Relationship ${r.relationship}/5 · Overlap ${r.overlap}/5</div></div><span class="score">${r.s}</span></div>`).join("");
+  const ag=[...new Set((b.workstreams||[]).flatMap(w=>[w.responsible,w.accountable,w.consulted]).filter(Boolean))];
+  if(!ag.includes("Digitas")) ag.unshift("Digitas");
+  const raci=(b.workstreams||[]).map(w=>`<tr><td class="dim">${esc(w.name)}</td>${ag.map(a=>{const c=w.responsible===a?"R":w.accountable===a?"A":w.consulted===a?"C":"";return `<td class="c ${c}">${c||"–"}</td>`;}).join("")}</tr>`).join("");
+  const fee=b.fee||0;
+  const totalShare=(b.workstreams||[]).reduce((s,w)=>s+(+w.share||0),0)||1;
+  const byAg={}; (b.workstreams||[]).forEach(w=>{byAg[w.responsible]=(byAg[w.responsible]||0)+(+w.share||0);});
+  const agRows=Object.entries(byAg).sort((a,c)=>c[1]-a[1]);
+  const bar=agRows.map(([a,s],i)=>`<span style="width:${s/totalShare*100}%;background:${COLORS[i%COLORS.length]}" title="${esc(a)}"></span>`).join("");
+  const legend=agRows.map(([a,s],i)=>`<span><i style="background:${COLORS[i%COLORS.length]}"></i>${esc(a)} ${Math.round(s/totalShare*100)}%</span>`).join("");
+  const wsRows=(b.workstreams||[]).map((w,i)=>`<tr><td>${esc(w.name)}</td><td>${esc(w.responsible)}</td><td class="num"><input class="pct" type="number" min="0" max="100" step="1" id="share-${i}" data-i="${i}" value="${+w.share||0}" aria-label="Share for ${esc(w.name)}"> %</td><td class="num">${fmt(fee*(+w.share||0)/totalShare)}</td></tr>`).join("");
+  const agTable=agRows.map(([a,s])=>`<tr><td>${esc(a)}</td><td class="num">${Math.round(s/totalShare*100)}%</td><td class="num">${fmt(fee*s/totalShare)}</td></tr>`).join("");
+  const contract=(b.contract||[]).map((c,i)=>`<div class="cl"><h3>${i+1}. ${esc(c.title)}</h3><p>${esc(c.text)}</p></div>`).join("");
+  $("#board").innerHTML=`
+  <div class="progress"><span class="on">1 · Rank partners</span><span class="${b.workstreams?.length?"on":""}">2 · Split tasks</span><span class="${b.fee?"on":""}">3 · Split revenue</span><span class="${b.contract?.length?"on":""}">4 · Contract</span></div>
+  <section class="support"><div class="support-head"><span class="eyebrow">Opportunity</span><div class="client-line"><b>${esc(b.opportunity?.client)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":"Example"}</span></div><p class="note">${esc(b.opportunity?.source)} · Need: ${esc(b.opportunity?.need)}</p></div>
+    ${b.lead?`<div class="decision"><b>Lead agency:</b> ${esc(b.lead.agency)}. ${esc(b.lead.why)}</div>`:""}
+    ${(()=>{const ex=INT_EXAMPLES.find(x=>x.id===cur().pick);return ex&&ex.sources&&cur().source!=="ai"?`<div class="sources"><span class="eyebrow">Public sources</span>${ex.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("")}</div>`:"";})()}</section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Step 1</span><h2>Which sister agencies to bring in</h2><span class="addon">Add-on: ranking model</span></div>
+    <p class="note">Publicis Groupe sister agencies only. Score out of 100 = 50% capability fit + 30% existing client relationship + 20% low overlap with Digitas. The demo ranks 10 agencies; the full build would cover the whole Publicis network.</p><div class="rank">${rank}</div></section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Step 2</span><h2>Who does what</h2><span class="addon">Add-on: task delegation</span></div>
+    <p class="note">R = does the work · A = approves and owns the result · C = consulted</p>
+    <div class="table-wrap"><table class="raci"><thead><tr><th>Workstream</th>${ag.map(a=>`<th style="text-align:center">${esc(a)}</th>`).join("")}</tr></thead><tbody>${raci}</tbody></table></div></section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Step 3</span><h2>How the revenue is shared</h2><span class="addon">Add-on: revenue split calculator</span></div>
+    <div class="feerow"><label for="fee" class="note">Total joint fee</label><input type="number" id="fee" min="0" step="10000" value="${fee}"><span class="note">Edit the fee or any share; totals update. Shares follow the workstream each agency does.</span></div>
+    ${b.feeNote?`<p class="note" style="color:var(--warn)">${esc(b.feeNote)}</p>`:""}
+    <div class="split-bar" aria-hidden="true">${bar}</div><div class="legend">${legend}</div>
+    <div class="two"><div class="table-wrap"><table style="min-width:420px"><thead><tr><th>Workstream</th><th>Done by</th><th class="num">Share</th><th class="num">Fee</th></tr></thead><tbody>${wsRows}<tr class="total"><td colspan="2">Total</td><td class="num">${Math.round(totalShare)}%</td><td class="num">${fmt(fee)}</td></tr></tbody></table></div>
+    <div class="table-wrap"><table style="min-width:280px"><thead><tr><th>Agency</th><th class="num">Share</th><th class="num">Revenue</th></tr></thead><tbody>${agTable}</tbody></table></div></div>
+    ${Math.round(totalShare)!==100?`<p class="note" style="color:var(--warn)">Shares add up to ${Math.round(totalShare)}%. Dollar amounts are scaled to the total fee.</p>`:""}</section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Step 4</span><h2>Reusable agreement template</h2><span class="addon">Add-on: contract template</span></div>
+    <div class="contract">${contract}</div>
+    <div class="two"><div class="side"><span class="eyebrow">Kickoff checklist</span><ul>${(b.kickoff||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div class="side"><span class="eyebrow">Risks to plan for</span><ul>${(b.risks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>
+    <div class="copyrow"><button class="btn ghost small" id="copy" type="button">Copy template and split</button><span class="note" id="copyStatus" role="status"></span></div></section>`;
+  $("#fee").addEventListener("change",e=>{b.fee=Math.max(0,+e.target.value||0);renderInternal();});
+  document.querySelectorAll("input.pct").forEach(inp=>inp.addEventListener("change",e=>{b.workstreams[+e.target.dataset.i].share=Math.max(0,+e.target.value||0);renderInternal();}));
+  $("#copy").addEventListener("click",copy);
+}
+
+/* ---------- External render ---------- */
+function renderExternal(){
+  const b=cur().board; const empty=t=>`<p class="empty">${t}</p>`;
+  const p=cur().pick&&PROSPECTS.find(x=>x.id===cur().pick);
+  if(!b||!b.client){ $("#board").innerHTML=`<section class="support">${empty(p?`Facts for ${esc(p.name)} are loaded in the chat. Press “Build the full proposal.”`:"Pick a real prospect or paste your own brief.")}</section>`; return; }
+  const L=b.ladder||{}, d=L.discovery, pl=L.pilot;
+  const needs=(b.needs||[]).map(n=>`<div class="need ${n.type==="hidden"?"hidden":"stated"}"><span class="k">${n.type==="hidden"?"Beyond the brief":"Stated by the client"}</span><p>${esc(n.need)}</p></div>`).join("");
+  const caps=CAPS.map(name=>{const c=(b.capabilities||[]).find(x=>x.name===name)||{status:"off",link:"Not assessed yet.",why:""};const st=STATUS[c.status]?c.status:"off";return `<div class="cap ${st}"><div class="top"><span class="pill">${STATUS[st]}</span>${c.step?`<span class="step">${c.step}</span>`:""}</div><h3>${esc(name)}</h3><span class="eyebrow" style="font-size:10px">${esc(CAP_NOTE[name])}</span><p>${esc(c.link)}</p>${c.why?`<p class="why">${esc(c.why)}</p>`:""}</div>`;}).join("");
+  const comp=(b.comparison||[]).map(x=>`<tr><td class="dim">${esc(x.dimension)}</td><td class="sp">${esc(x.specialists)}</td><td>${esc(x.digitas)}</td></tr>`).join("");
+  const proof=(b.proof||[]).map(x=>{const r=PROOF[x.id];return r?`<div class="pr"><span class="eyebrow">${esc(r.client)}</span><span class="res">${esc(r.result)}</span><p class="rel">${esc(x.relevance)}</p><span class="src">${esc(r.source)}</span></div>`:"";}).join("");
+  const srcs=p?p.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join(""):"";
+  let ladder=empty("The agent builds the trial ladder once the problem is clear.");
+  if(pl){
+    ladder=`<div class="ladder">
+      <div class="rung"><span class="wk">Step 1 · Discovery trial · ${esc(d?.weeks)}</span><span class="fee">${k(d?.fee)} fixed</span><ul>${(d?.deliverables||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+      <div class="rung mid"><span class="wk">Step 2 · Paid pilot · ${esc(pl.weeks)} weeks</span><span class="fee">${k(pl.fee_low)}–${k(pl.fee_high)}</span><p style="font-size:13px"><b>${esc(pl.name)}:</b> ${esc(pl.focus)}</p></div>
+      <div class="rung"><span class="wk">Step 3 · Formal partnership</span><p style="font-size:13px">${esc(L.partnership)}</p></div></div>
+      ${L.referral?`<div class="decision"><b>Partner discount:</b> ${esc(L.referral)}</div>`:""}
+      <div class="stages">${(pl.stages||[]).map((s,i)=>`<div class="stage"><span class="wk">${esc(STAGES[i]||"")} · ${esc(s.weeks)}</span><p>${esc(s.what)}</p><p class="gets"><b>Client receives:</b> ${esc(s.client_receives)}</p></div>`).join("")}</div>
+      <div class="table-wrap"><table><thead><tr><th>KPI</th><th>Baseline</th><th>Target</th></tr></thead><tbody>${(pl.kpis||[]).map(x=>`<tr><td>${esc(x.metric)}</td><td class="num" style="text-align:left">${esc(x.baseline)}</td><td class="num" style="text-align:left">${esc(x.target)}</td></tr>`).join("")}</tbody></table></div>
+      <div class="two"><div class="side"><span class="eyebrow">Why the client says yes</span><ul>${(b.benefits_client||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div class="side"><span class="eyebrow">Why Digitas offers it</span><ul>${(b.benefits_digitas||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>`;
+  }
+  const im=b.implementation;
+  $("#board").innerHTML=`
+  <div class="progress"><span class="on">1 · Read the client</span><span class="${b.capabilities?.length?"on":""}">2 · Pitch outline</span><span class="${pl?"on":""}">3 · Trial ladder</span></div>
+  <section class="support"><div class="support-head"><span class="eyebrow">Support 1</span><h2>Read the client early</h2></div>
+    <div class="client-line"><b>${esc(b.client.name)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":"Pre-built"}</span><span class="note">${esc(b.client.industry)}</span></div><p><b>Objective:</b> ${esc(b.client.ask)}</p>
+    ${b.diagnosis?`<div class="diagnosis"><span class="eyebrow">The real problem</span><p>${esc(b.diagnosis)}</p></div>`:""}<div class="needs">${needs}</div>${srcs?`<div class="sources"><span class="eyebrow">Public sources</span>${srcs}</div>`:""}</section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Support 2</span><h2>Pitch outline</h2></div>
+    ${b.capabilities?.length?`<div class="capmap">${caps}</div>
+    ${comp?`<div><h3 style="margin-bottom:8px">Separate specialists vs. Digitas as connector</h3><div class="table-wrap"><table><thead><tr><th>What changes</th><th>Specialists</th><th>Digitas</th></tr></thead><tbody>${comp}</tbody></table></div></div>`:""}
+    ${proof?`<div><h3 style="margin-bottom:8px">Proof from past Digitas work</h3><div class="proof">${proof}</div></div>`:""}
+    ${b.opener?`<div><span class="eyebrow">Pitch opener</span><p class="opener" style="margin-top:6px">“${esc(b.opener)}”</p></div>`:""}`:empty("The integration map appears once the problem is clear.")}</section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Support 3</span><h2>Trial ladder</h2><span class="addon">Add-on: trial ladder</span></div>${ladder}</section>
+  ${im?`<section class="support"><div class="support-head"><span class="eyebrow">Make it happen</span><h2>Implementation</h2></div>
+    <div class="table-wrap"><table><thead><tr><th>Digitas role</th><th>Responsibility</th></tr></thead><tbody>${(im.team||[]).map(t=>`<tr><td class="dim">${esc(t.role)}</td><td>${esc(t.does)}</td></tr>`).join("")}</tbody></table></div>
+    <div class="two"><div class="side"><span class="eyebrow">How to get in the room</span><ol class="plain">${(im.outreach||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ol></div><div class="side"><span class="eyebrow">Confirm before pitching</span><ul>${(im.verify||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>
+    <div class="side"><span class="eyebrow">Risks</span><ul>${(b.risks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div>
+    <div class="copyrow"><button class="btn ghost small" id="copy" type="button">Copy pitch outline</button><span class="note" id="copyStatus" role="status"></span></div></section>`:""}`;
+  const c=$("#copy"); if(c) c.addEventListener("click",copy);
+}
+/* ---------- Budget & ROI ---------- */
+const ROI={agent:60000,materials:30000,training:20000,contingency:10000,trials:10,discCost:25000,discPrice:15000,refShare:40,refDisc:50,pilotRate:50,pilotPrice:65000,pilotCost:55000,partnerRate:50,annualFee:750000,margin:25,jointN:2,jointFee:400000,years:3};
+const ROI_LABELS={
+ spend:[["agent","Build agent add-ons on Digitas AI","$"],["materials","Pitch templates and sister-agency one-pagers","$"],["training","Train business development team","$"],["contingency","Contingency","$"]],
+ trial:[["trials","Discovery trials offered in year one","#"],["discCost","Digitas cost to run one discovery trial","$"],["discPrice","Price the client pays for discovery","$"],["refShare","Share of trials referred by a sister agency","%"],["refDisc","Referral discount on discovery","%"]],
+ pilot:[["pilotRate","Discovery trials that become paid pilots","%"],["pilotPrice","Pilot price","$"],["pilotCost","Digitas cost to run one pilot","$"],["partnerRate","Pilots that become partnerships","%"],["annualFee","Annual fees from one new partnership","$"],["margin","Digitas profit margin on fees","%"]],
+ internal:[["jointN","New joint engagements from sister-agency outreach","#"],["jointFee","Digitas's annual fees per joint engagement","$"],["years","Years in the multi-year view","#"]]};
+function calcROI(v){
+  const fixed=v.agent+v.materials+v.training+v.contingency;
+  const avgDiscPrice=v.discPrice*(1-v.refShare/100*v.refDisc/100);
+  const discRevenue=v.trials*avgDiscPrice, discDelivery=v.trials*v.discCost, subsidy=Math.max(0,discDelivery-discRevenue);
+  const referralDiscounts=v.trials*v.discPrice*(v.refShare/100)*(v.refDisc/100);
+  const spend=fixed+subsidy;
+  const pilots=v.trials*v.pilotRate/100, pilotNet=pilots*(v.pilotPrice-v.pilotCost);
+  const partners=pilots*v.partnerRate/100, creditEach=avgDiscPrice+v.pilotPrice, credits=partners*creditEach;
+  const partnerProfitYr=partners*v.annualFee*v.margin/100, jointProfitYr=v.jointN*v.jointFee*v.margin/100;
+  const ext1=partnerProfitYr-credits+pilotNet, int1=jointProfitYr, ret1=ext1+int1;
+  const extN=partnerProfitYr*v.years-credits+pilotNet, intN=jointProfitYr*v.years, retN=extN+intN;
+  const perPartner=v.annualFee*v.margin/100-creditEach;
+  const breakEven=perPartner>0?Math.max(0,(spend-pilotNet)/perPartner):Infinity;
+  return {fixed,subsidy,discRevenue,discDelivery,referralDiscounts,spend,pilots,pilotNet,partners,credits,creditEach,partnerProfitYr,jointProfitYr,ext1,int1,ret1,extN,intN,retN,roi1:(ret1-spend)/spend,roiN:(retN-spend)/spend,breakEven};
+}
+function renderROI(){
+  const v=ROI, r=calcROI(v);
+  const pct=x=>(x*100).toFixed(0)+"%";
+  const inp=([key,label,unit])=>`<label class="inp" for="roi-${key}"><span>${esc(label)}</span><span>${unit==="$"?"$ ":""}<input type="number" id="roi-${key}" data-k="${key}" min="0" step="${unit==="$"?1000:1}" value="${v[key]}">${unit==="%"?" %":""}</span></label>`;
+  const row=(a,b,cls)=>`<tr><td>${a}</td><td class="num ${cls||""}">${b}</td></tr>`;
+  $("#board").innerHTML=`
+  <section class="support"><div class="support-head"><span class="eyebrow">The answer in one line</span><h2>Spend ${fmt(r.spend)}, expect about ${fmt(r.ret1)} in profit in year one and ${fmt(r.retN)} over ${v.years} years.</h2>
+    <p class="note">Every number below is an assumption you can change. Confirm margin, average fees and conversion rates with Digitas.</p></div>
+    <div class="kpis"><div class="kpi"><span class="eyebrow">Total spend</span><b>${k(r.spend)}</b><span class="note">${r.spend>250000?"Over":"Within"} the $250K budget</span></div>
+    <div class="kpi"><span class="eyebrow">Year-one ROI</span><b>${pct(r.roi1)}</b><span class="note">(profit − spend) ÷ spend</span></div>
+    <div class="kpi hi"><span class="eyebrow">${v.years}-year ROI</span><b>${pct(r.roiN)}</b><span class="note">Partnerships keep paying</span></div>
+    <div class="kpi"><span class="eyebrow">Break-even</span><b>${isFinite(r.breakEven)?r.breakEven.toFixed(1):"n/a"}</b><span class="note">new partnerships, external only</span></div></div></section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Spend X</span><h2>Where the $250K goes</h2></div>
+    <div class="table-wrap"><table style="min-width:380px"><thead><tr><th>Item</th><th class="num">Cost</th></tr></thead><tbody>
+      ${row("Build agent add-ons on Digitas AI",fmt(v.agent))}${row("Pitch templates and sister-agency one-pagers",fmt(v.materials))}${row("Train business development team",fmt(v.training))}${row("Contingency",fmt(v.contingency))}
+      ${row(`Trial subsidy: ${v.trials} discovery trials cost ${fmt(r.discDelivery)} to run, clients pay ${fmt(r.discRevenue)} after referral discounts of ${fmt(r.referralDiscounts)}`,fmt(r.subsidy))}
+      <tr class="total"><td>Total spend</td><td class="num">${fmt(r.spend)}</td></tr></tbody></table></div></section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Get Y</span><h2>What comes back</h2></div>
+    <div class="funnel"><div class="fstep"><span class="note">Discovery trials</span><b>${v.trials}</b></div><div class="fstep"><span class="note">Paid pilots</span><b>${r.pilots.toFixed(1)}</b></div><div class="fstep"><span class="note">New partnerships</span><b>${r.partners.toFixed(1)}</b></div><div class="fstep"><span class="note">Joint engagements</span><b>${v.jointN}</b></div></div>
+    <div class="table-wrap"><table style="min-width:420px"><thead><tr><th>Year one</th><th class="num">Profit</th></tr></thead><tbody>
+      ${row(`External: ${r.partners.toFixed(1)} partnerships × ${fmt(v.annualFee)} fees × ${v.margin}% margin`,fmt(r.partnerProfitYr),"pos")}
+      ${row(`Fee credits given back (discovery + pilot fees credited to year one, ${fmt(r.creditEach)} each)`,"−"+fmt(r.credits),"neg")}
+      ${row(`Pilot profit: ${r.pilots.toFixed(1)} pilots × ${fmt(v.pilotPrice-v.pilotCost)}`,fmt(r.pilotNet),r.pilotNet>=0?"pos":"neg")}
+      ${row(`Internal: ${v.jointN} joint engagements × ${fmt(v.jointFee)} Digitas fees × ${v.margin}% margin`,fmt(r.jointProfitYr),"pos")}
+      <tr class="total"><td>Year-one profit</td><td class="num">${fmt(r.ret1)}</td></tr>
+      <tr><td>Minus the spend</td><td class="num neg">−${fmt(r.spend)}</td></tr>
+      <tr class="total"><td>Year-one net gain</td><td class="num">${fmt(r.ret1-r.spend)}</td></tr>
+      <tr class="total"><td>${v.years}-year profit (partnerships and joint work recur; credits and pilots count once)</td><td class="num">${fmt(r.retN)}</td></tr></tbody></table></div></section>
+  <section class="support"><div class="support-head"><span class="eyebrow">Assumptions</span><h2>Change any number</h2></div>
+    <h3>Fixed costs</h3><div class="inputs">${ROI_LABELS.spend.map(inp).join("")}</div>
+    <h3>Discovery trials and discounts</h3><div class="inputs">${ROI_LABELS.trial.map(inp).join("")}</div>
+    <h3>Pilots and partnerships</h3><div class="inputs">${ROI_LABELS.pilot.map(inp).join("")}</div>
+    <h3>Internal and time frame</h3><div class="inputs">${ROI_LABELS.internal.map(inp).join("")}</div>
+    <p class="note">Context: holding-company agency relationships average 5.8 years (ANA and 4A's, 2025), so a ${v.years}-year view is conservative. Defaults are placeholders, not Digitas figures.</p>
+    <div class="copyrow"><button class="btn ghost small" id="copyRoi" type="button">Copy budget and ROI</button><span class="note" id="copyStatus" role="status"></span></div></section>`;
+  document.querySelectorAll("[data-k]").forEach(i=>i.addEventListener("change",e=>{ROI[e.target.dataset.k]=Math.max(0,+e.target.value||0);renderROI();}));
+  $("#copyRoi").addEventListener("click",async()=>{const t=[`Spend ${fmt(r.spend)} -> year-one profit ${fmt(r.ret1)} (ROI ${pct(r.roi1)}); ${v.years}-year profit ${fmt(r.retN)} (ROI ${pct(r.roiN)}). Break-even: ${r.breakEven.toFixed(1)} new partnerships.`,"",`Spend: agent ${fmt(v.agent)}, materials ${fmt(v.materials)}, training ${fmt(v.training)}, contingency ${fmt(v.contingency)}, trial subsidy ${fmt(r.subsidy)} (${v.trials} trials; referral discounts ${fmt(r.referralDiscounts)}).`,`Returns: ${r.partners.toFixed(1)} partnerships ${fmt(r.partnerProfitYr)}, fee credits -${fmt(r.credits)}, pilot profit ${fmt(r.pilotNet)}, joint engagements ${fmt(r.jointProfitYr)}.`,`Assumptions: discovery ${fmt(v.discPrice)} price / ${fmt(v.discCost)} cost, ${v.pilotRate}% to pilot at ${fmt(v.pilotPrice)}, ${v.partnerRate}% to partnership at ${fmt(v.annualFee)}/yr, ${v.margin}% margin.`].join("\n");const s=$("#copyStatus");try{await navigator.clipboard.writeText(t);s.textContent="Copied.";}catch(_){s.textContent="Copy didn't work in this view.";}});
+}
+
+function render(){ if(mode==="roi") return renderROI(); mode==="internal"?renderInternal():renderExternal(); }
+
+/* ---------- Copy ---------- */
+function summaryText(){
+  const b=cur().board; if(!b) return "";
+  if(mode==="internal"){
+    const tot=(b.workstreams||[]).reduce((s,w)=>s+(+w.share||0),0)||1;
+    return [`Opportunity: ${b.opportunity?.client} (${b.opportunity?.source})`,`Need: ${b.opportunity?.need}`,`Lead agency: ${b.lead?.agency}`,"",
+      "Partner ranking:",...[...(b.ranking||[])].map(r=>({...r,s:score(r)})).sort((a,c)=>c.s-a.s).map((r,i)=>`${i+1}. ${r.agency} (${r.s}/100): ${r.role}`),"",
+      "Task and revenue split:",...(b.workstreams||[]).map(w=>`- ${w.name}: R ${w.responsible}, A ${w.accountable}, C ${w.consulted}; ${Math.round(w.share/tot*100)}% = ${fmt(b.fee*w.share/tot)}`),"",
+      "Joint engagement template:",...(b.contract||[]).map((c,i)=>`${i+1}. ${c.title}: ${c.text}`)].join("\n");
+  }
+  const L=b.ladder||{},pl=L.pilot||{};
+  return [`${b.client?.name}: ${b.client?.ask}`,`Real problem: ${b.diagnosis}`,"","Integration map:",...(b.capabilities||[]).map(c=>`- ${c.name} [${STATUS[c.status]||c.status}]: ${c.link}`),"",
+    "Proof:",...(b.proof||[]).map(x=>PROOF[x.id]?`- ${PROOF[x.id].client}: ${PROOF[x.id].result} (${PROOF[x.id].source})`:"").filter(Boolean),"",
+    `Step 1 discovery (${L.discovery?.weeks}, ${k(L.discovery?.fee)}): ${(L.discovery?.deliverables||[]).join("; ")}`,
+    `Step 2 pilot: ${pl.name}, ${pl.weeks} weeks, ${k(pl.fee_low)}-${k(pl.fee_high)}. ${pl.focus}`,...(pl.kpis||[]).map(x=>`- KPI ${x.metric}: ${x.baseline} -> ${x.target}`),
+    `Step 3 partnership: ${L.partnership}`,`Partner discount: ${L.referral}`,"",`Opener: "${b.opener}"`].join("\n");
+}
+async function copy(){const s=$("#copyStatus"),t=summaryText();try{await navigator.clipboard.writeText(t);s.textContent="Copied.";}catch(_){const ta=document.createElement("textarea");ta.value=t;ta.style.position="fixed";ta.style.opacity="0";document.body.appendChild(ta);ta.select();try{document.execCommand("copy");s.textContent="Copied.";}catch(e){s.textContent="Copy didn't work in this view.";}ta.remove();}}
+
+/* ---------- Prompts ---------- */
+const CONTEXT=`Context: Digitas is a full-service agency inside Publicis Groupe. Its Power of One model lets sister agencies work on shared clients, but friction comes from unclear ownership of strategy and client relationship, unclear scope lines, and revenue credit, because each agency has its own growth goals. Digitas says the fix is being explicit up front about who owns what. Externally, clients hire Digitas for one job and give the rest to specialists; it loses on price and to incumbents because clients can't see connected value up front. Clients buy named people and chemistry. Digitas must not claim to do everything: work outside its five capabilities goes to a sister agency or the client's current specialist.`;
+const INT_SCHEMA=`{"opportunity":{"client":"","source":"","need":""},"ranking":[{"agency":"","fit":0,"relationship":0,"overlap":0,"role":"","why":""}],"lead":{"agency":"","why":""},"workstreams":[{"name":"","responsible":"","accountable":"","consulted":"","share":0}],"fee":0,"feeNote":"","contract":[{"title":"","text":""}],"kickoff":[""],"risks":[""]}`;
+const INT_RULES=`Rank 4-6 Publicis Groupe sister agencies from this list only (never agencies outside Publicis; non-Publicis partners such as a client's other holding company may appear only in the contract's communication section): ${Object.entries(AGENCIES).map(([a,d])=>`${a} (${d})`).join("; ")}. Scores are integers 0-5: fit = how well its capability matches the need; relationship = how strong its existing tie to this client is (5 if it owns the client); overlap = how much it duplicates Digitas (5 = heavy overlap). Workstreams: 4-6, each with one responsible, one accountable and one consulted party (use "Digitas" or agency names), and share = percent of total effort; shares must add up to 100. Digitas must be responsible for at least one workstream that matches its five capabilities (Creative Experiences, Integrated Media, Addressable Relationships, Total Commerce, Social Transformation). fee = the user's estimate in whole dollars, or 0 if none given. Contract: exactly 6 sections with these titles in order: "Project scope and objectives" (agencies, client, objectives, deliverables, timeline), "Lead agency and responsibilities" (lead from the ranking, who leads each workstream), "Client ownership and revenue allocation" (who manages the client, revenue split, credit), "Communication and decision-making" (meeting frequency, reporting, approval authority), "Dispute resolution" (what happens when agencies disagree on scope), "Approvals and sign-off" (who signs, when, signature lines). Write it as a reusable fill-in template with [Client]-style placeholders where facts are missing. 4 kickoff items, 3 risks. Use only facts the user gives; never invent clients or figures. If the user gives only a company name: treat it as a hypothetical Publicis opportunity with that company, describe its likely marketing need from widely known public facts only (no figures you are unsure of), set opportunity.source to "Hypothetical opportunity, based on general public knowledge", set relationship scores to 1-2 unless a Publicis tie is widely known, set fee to an illustrative whole number between 2000000 and 20000000 and feeNote to "Illustrative fee for the demo, not a reported figure", and put anything to confirm in risks.`;
+const EXT_SCHEMA=`{"client":{"name":"","industry":"","ask":""},"diagnosis":"","needs":[{"type":"stated|hidden","need":""}],"capabilities":[{"name":"","status":"entry|connect|later|off","step":1,"link":"","why":""}],"comparison":[{"dimension":"","specialists":"","digitas":""}],"proof":[{"id":"","relevance":""}],"opener":"","ladder":{"discovery":{"weeks":"1–2 weeks","fee":15000,"deliverables":[""]},"pilot":{"name":"","weeks":8,"fee_low":50000,"fee_high":90000,"focus":"","stages":[{"weeks":"","what":"","client_receives":""}],"kpis":[{"metric":"","baseline":"","target":""}]},"partnership":"","referral":""},"benefits_client":[""],"benefits_digitas":[""],"implementation":{"team":[{"role":"","does":""}],"outreach":[""],"verify":[""]},"risks":[""]}`;
+const EXT_RULES=`Use ONLY the facts given about the prospect; anything assumed goes in implementation.verify. Proof ids allowed: ${Object.entries(PROOF).map(([id,r])=>`${id} (${r.client}: ${r.result})`).join("; ")}. Capabilities (exact): ${CAPS.join(", ")}; exactly one "entry", one or two "connect". Prefer problems that cross boundaries, like commerce plus loyalty or media connected to CRM. Ladder: discovery 1-2 weeks, fixed fee 10000-25000, 3 deliverables (diagnosis, integration map, trial plan); pilot 6-8 weeks, fee 40000-120000, one question, four stages in order (Analyze the problem, Develop targeted strategy, Launch pilot, Present results) with client_receives, 3 KPIs ("Client to provide" when unknown); partnership = what happens if satisfied, with fees credited to year one; referral = discount for clients referred by a Publicis sister agency. 3 team roles (no names), 3 outreach steps, 3 verify items, 3 risks.`;
+
+function factsBlock(){ const p=mode==="external"&&cur().pick&&PROSPECTS.find(x=>x.id===cur().pick); return p?`Prospect: ${p.name}\nPublic facts:\n- ${p.facts.join("\n- ")}`:"Facts: only what the user says in the conversation."; }
+function chatPrompt(){
+  const isInt=mode==="internal";
+  return `You are the Digitas Connector Agent, a prototype add-on to Digitas's internal AI platform. ${isInt?"INTERNAL MODE: help Digitas team with Publicis sister agencies on an opportunity: rank partners, split tasks, split revenue, and draft a joint engagement template.":"EXTERNAL MODE: build an implementable pitch outline and trial ladder for a prospective client."}
+${CONTEXT}
+${isInt?INT_RULES:EXT_RULES}
+If the user gives only a company name, do not ask questions: build the full output now. Otherwise, if the first message lacks key facts (${isInt?"which agency owns the client, the need, a rough fee":"who does the other work, data access"}), ask up to 3 short questions once and fill only the first section; otherwise build or update the full output. "reply" under 70 words, plain text.
+${factsBlock()}
+Current output: ${JSON.stringify(cur().board||{})}
+Conversation:
+${cur().messages.map(m=>`${m.role==="user"?"USER":"AGENT"}: ${m.content}`).join("\n\n")}
+Return only JSON: {"reply":"...","board":${isInt?INT_SCHEMA:EXT_SCHEMA}}`;
+}
+function critiquePrompt(){
+  const isInt=mode==="internal";
+  const checks=isInt?`1. Rankings follow the scoring definitions and the top partner truly fits the need.
+2. Every workstream has exactly one responsible and one accountable party, with no scope overlap between agencies.
+3. Revenue shares add to 100 and match the effort each agency does.
+4. The contract settles client relationship ownership, decision rights, credit and disputes, the friction points Digitas named.
+5. Nothing is invented beyond the user's facts.`:`1. Every prospect fact appears in the public facts; move anything else to verify.
+2. The discovery trial delivers a plan, and the pilot answers one question measurable in its length.
+3. Fees fit the work in each step.
+4. Digitas does not claim work outside its five capabilities.
+5. The opener speaks to the client's stated goal.`;
+  return `You are a skeptical Digitas managing director reviewing this ${isInt?"joint engagement plan":"pitch outline"} before it is used. Check it and then fix it:
+${checks}
+${CONTEXT}
+${isInt?INT_RULES:EXT_RULES}
+${factsBlock()}
+Output to review: ${JSON.stringify(cur().board)}
+Return only JSON: {"critique":["3-5 specific problems, one sentence each"],"changes":"one sentence","board":${isInt?INT_SCHEMA:EXT_SCHEMA}}`;
+}
+
+/* ---------- AI calls ---------- */
+function merge(next){ if(!next) return; const b=cur().board||{}; for(const [key,v] of Object.entries(next)){ if(v===null||v===undefined||v==="") continue; if(Array.isArray(v)&&!v.length) continue; b[key]=v; } cur().board=b; }
+function guard(){ if(!live){ addMsg("ai","Live AI isn't connected right now. The examples still show the full output.","err"); return false; } return !busy; }
+function lock(v){ busy=v; ["#send","#refine"].forEach(s=>$(s).disabled=v); document.querySelectorAll(".pbtn,.chip,.tab").forEach(x=>x.disabled=v); }
+function fail(e){ const c=e&&e.code; addMsg("ai",c==="no_key"?"The site's AI key isn't set up yet.":c==="rate_limited"?"The free AI limit was hit. Wait a minute and try again.":c==="invalid_json"?"The answer came back incomplete. Try again.":"Something went wrong. Try again.","err"); }
+async function send(text){
+  text=(text||"").trim(); if(!text||!guard()) return;
+  cur().messages.push({role:"user",content:text}); addMsg("user",text); $("#input").value=""; lock(true);
+  const t=addMsg("ai","Thinking…","typing",false);
+  try{ const r=await callAI(chatPrompt()); t.remove();
+    const reply=r?.reply||"Updated."; cur().messages.push({role:"assistant",content:reply}); addMsg("ai",reply);
+    if(r?.board){ merge(r.board); cur().source="ai"; render(); } chips(); }
+  catch(e){ t.remove(); cur().messages.pop(); fail(e); } finally{ lock(false); }
+}
+async function refine(){
+  if(!guard()) return; if(!cur().board){ addMsg("ai","Build an output first, then I can critique it.","err"); return; }
+  const n=+$("#rounds").value; lock(true);
+  for(let i=1;i<=n;i++){ const t=addMsg("ai",`Reviewing (round ${i} of ${n})…`,"typing",false);
+    try{ const r=await callAI(critiquePrompt()); t.remove();
+      addMsg("ai",(r.critique||[]).map((c,j)=>`${j+1}. ${c}`).join("\n")+(r.changes?`\n\nChanged: ${r.changes}`:""),"critique");
+      if(r.board){ merge(r.board); cur().source="ai"; render(); } }
+    catch(e){ t.remove(); fail(e); break; } }
+  lock(false);
+}
+function chips(){
+  if(mode==="internal") setChips(cur().board?.contract?.length?["Add Publicis Sapient","Make Digitas the lead","Give Digitas a bigger share","What could cause friction?"]:["Build the full plan"]);
+  else setChips(cur().board?.ladder?.pilot?["Make the trial cheaper","Shorten the pilot to 6 weeks","Which proof is strongest?"]:["Build the full proposal"]);
+}
+
+/* ---------- Picks and tabs ---------- */
+function renderPicks(){
+  const isInt=mode==="internal"; $("#picksLabel").textContent=isInt?"Or open an example":"Real prospects (public facts)"; $("#coForm").hidden=!isInt;
+  const items=isInt?INT_EXAMPLES.map(x=>({id:x.id,name:x.name,sub:x.sub})):PROSPECTS.map(x=>({id:x.id,name:x.name,sub:x.sub}));
+  $("#plist").innerHTML=items.map(x=>`<button class="pbtn" type="button" data-id="${x.id}" aria-pressed="${cur().pick===x.id}">${esc(x.name)}<small>${esc(x.sub)}</small></button>`).join("")+`<button class="pbtn" type="button" data-id="own" aria-pressed="${cur().pick==="own"}">Your own<small>${isInt?"Describe an opportunity":"Paste a brief"}</small></button>`;
+  document.querySelectorAll(".pbtn").forEach(b=>b.addEventListener("click",()=>pick(b.dataset.id)));
+}
+function pick(id){
+  if(busy) return; const st=cur(); st.messages=[]; st.log=[]; st.board=null; st.pick=id; st.source="example"; $("#log").innerHTML="";
+  if(mode==="internal"){
+    if(id==="own"){ addMsg("ai","Describe the opportunity: the client, which sister agency owns it, what the client needs, and a rough joint fee. I'll rank partners, split tasks and revenue, and draft the template."); setChips([]); }
+    else { const ex=INT_EXAMPLES.find(x=>x.id===id); st.board=structuredClone(ex.board); addMsg("user",ex.brief); addMsg("ai",id==="pepsico"?"Here's the plan for a real Publicis win: the media agency leads, Epsilon runs identity and data, Sapient the AI and tech model, Publicis Commerce the retail media, and Digitas owns social-first and creator-led programs. Lead agency and fee are assumptions; check them. Ask for changes or press Critique and improve.":"Here's the plan: Saatchi & Saatchi leads with the campaign, Digitas owns member personalization, and Epsilon handles data matching. Edit the fee or shares on the right, ask me for changes, or press Critique and improve."); chips(); }
+  } else {
+    if(id==="own"){ addMsg("ai","Paste the brief: what the client asked for, the numbers, and who handles their other marketing."); setChips([]); }
+    else if(id==="supergoop"){ st.board=structuredClone(SUPERGOOP); addMsg("ai","This proposal is pre-built from public facts about a real Digitas client that moved its media in 2026. Ask for changes or press Critique and improve."); chips(); }
+    else { const p=PROSPECTS.find(x=>x.id===id); addMsg("ai",`Facts loaded for ${p.name}:\n- ${p.facts.join("\n- ")}\n\nPress "Build the full proposal."`); setChips(["Build the full proposal"]); }
+  }
+  renderPicks(); render();
+}
+function setMode(m){
+  if(busy||m===mode) return; mode=m;
+  $("#tab-internal").setAttribute("aria-selected",m==="internal"); $("#tab-external").setAttribute("aria-selected",m==="external"); $("#tab-roi").setAttribute("aria-selected",m==="roi");
+  $(".layout").classList.toggle("solo",m==="roi");
+  if(m==="roi"){ renderROI(); return; }
+  $("#chatSub").textContent=m==="internal"?"Internal mode":"External mode";
+  $("#input").placeholder=m==="internal"?"Describe an opportunity or ask for a change…":"Paste a client brief or ask for a change…";
+  if(!cur().pick) pick(m==="internal"?"pepsico":"supergoop"); else { redrawLog(); renderPicks(); render(); chips(); }
+}
+
+$("#tab-internal").addEventListener("click",()=>setMode("internal"));
+$("#tab-external").addEventListener("click",()=>setMode("external"));
+$("#tab-roi").addEventListener("click",()=>setMode("roi"));
+$("#form").addEventListener("submit",e=>{e.preventDefault();send($("#input").value);});
+$("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send($("#input").value);}});
+$("#refine").addEventListener("click",refine);
+$("#coForm").addEventListener("submit",e=>{e.preventDefault();const n=$("#co").value.trim();if(!n||busy) return;pick("own");send(`Company: ${n}. Build the full breakdown: which Publicis sister agencies to bring in, who does what, the revenue split and the agreement.`);});
+
+pick("pepsico");
+async function callAI(prompt){
+  const r=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+  let j=null; try{ j=await r.json(); }catch(_){}
+  if(!r.ok) throw {code:(j&&j.code)||"error",message:(j&&j.error)||"error"};
+  if(!j||typeof j!=="object") throw {code:"invalid_json"};
+  return j;
+}
+(async()=>{
+  try{ const r=await fetch("/api/agent"); const j=await r.json(); live=!!(j&&j.ok); }catch(_){ live=false; }
+  $("#mode").textContent=live?"Live AI":"Demo only"; $("#mode").classList.toggle("live",live);
+  if(!live) $("#aiNote").textContent="Live AI isn't connected right now. The examples still show the full output.";
+})();
+</script>
+
+</body></html>
