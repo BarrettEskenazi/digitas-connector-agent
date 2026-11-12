@@ -672,19 +672,20 @@ function validateProposal(current,result){
   const text=(v,max=1000)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw new Error('Invalid proposal text');return v.trim();};
   const texts=(v,min,max=6)=>{if(!Array.isArray(v)||v.length<min||v.length>max)throw new Error('Incomplete proposal list');return v.map(x=>text(x,500));};
   const rows=(v,min,max)=>{const out=Array.isArray(v)?v.filter(x=>x!==''&&x!==null):v;if(!Array.isArray(out)||out.length<min||out.length>max)throw new Error('Incomplete proposal rows');return out;};
-  const agency=v=>{if(!validAgency(v))throw new Error('Invalid agency');return v;};
+  const agency=v=>{if(typeof v!=='string')throw new Error('Invalid agency');const name=v.normalize('NFKC').replace(/\s+/g,' ').trim();const normalized=({'Leo Burnett':'Leo','Sapient':'Publicis Sapient','Saatchi and Saatchi':'Saatchi & Saatchi'})[name]||name;if(!validAgency(normalized))throw new Error('Invalid agency');return normalized;};
   const candidate=structuredClone(current);
   candidate.opportunity.need=text(data.opportunity?.need,500);
   candidate.profile={business:text(data.profile?.business,800),audience:text(data.profile?.audience,500),assumptions:texts(data.profile?.assumptions,2)};
   const p=data.proposal;
   if(!Number.isInteger(p?.durationWeeks)||p.durationWeeks<2||p.durationWeeks>52)throw new Error('Invalid duration');
   candidate.proposal={title:text(p.title,180),summary:text(p.summary,1600),objectives:texts(p.objectives,2),scope:texts(p.scope,3),exclusions:texts(p.exclusions,1),durationWeeks:p.durationWeeks};
-  candidate.ranking=rows(data.ranking,4,6).map(r=>{agency(r.agency);if(r.agency==='Digitas')throw new Error('Ranking must be sisters');const out={agency:r.agency,role:text(r.role,180),why:text(r.why,500)};for(const k of ['fit','relationship','overlap']){if(!Number.isInteger(r[k])||r[k]<1||r[k]>5)throw new Error('Invalid score');out[k]=r[k];}return out;});
+  candidate.ranking=rows(data.ranking,4,6).map(r=>{const name=agency(r.agency);if(name==='Digitas')throw new Error('Ranking must be sisters');const out={agency:name,role:text(r.role,180),why:text(r.why,500)};for(const k of ['fit','relationship','overlap']){if(!Number.isInteger(r[k])||r[k]<1||r[k]>5)throw new Error('Invalid score');out[k]=r[k];}return out;});
   if(new Set(candidate.ranking.map(r=>r.agency)).size!==candidate.ranking.length)throw new Error('Duplicate ranking');
   candidate.lead={agency:agency(data.lead?.agency),why:text(data.lead?.why,500)};
-  candidate.workstreams=rows(data.workstreams,4,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,deliverables:texts(w.deliverables,1,4)};});
+  candidate.workstreams=rows(data.workstreams,3,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,deliverables:texts(w.deliverables,1,4)};});
   if(!candidate.workstreams.some(w=>w.responsible==='Digitas')||!candidate.workstreams.some(w=>w.responsible===candidate.lead.agency))throw new Error('Missing delivery owner');
   if(candidate.workstreams.reduce((s,w)=>s+w.share,0)<=0)throw new Error('Empty allocation');
+  if(candidate.workstreams.length===3){normalizeShares(candidate.workstreams,90);candidate.workstreams.push({name:'Program governance and measurement coordination',responsible:'Digitas',accountable:candidate.lead.agency,consulted:candidate.workstreams.find(w=>w.responsible!=='Digitas')?.responsible||candidate.lead.agency,share:10,deliverables:['Approved RACI, decision log and delivery calendar','Weekly consolidated KPI and budget report']});}
   normalizeShares(candidate.workstreams);
   if(!current.feeLocked){if(!Number.isFinite(data.fee)||data.fee<1000||data.fee>1e9)throw new Error('Invalid fee');candidate.fee=Math.round(data.fee);candidate.feeNote='Illustrative scope-based agency fee for this proposal, not an actual company budget or agency quote. Edit it to match the brief.';}
   candidate.plan=rows(data.plan,4,4).map(p=>({phase:text(p.phase,180),weeks:text(p.weeks,120),owner:agency(p.owner),actions:texts(p.actions,2,4),deliverable:text(p.deliverable,500),kpi:text(p.kpi,500)}));
