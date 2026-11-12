@@ -390,7 +390,7 @@ function renderInternal(){
   const rank=ranked.map((r,i)=>`<div class="rk ${i===0?"top":""}"><span class="n">${i+1}</span><div><b>${esc(r.agency)}</b><div class="sub">${esc(AGENCIES[r.agency]||"")}</div><div class="meter" aria-hidden="true"><i style="width:${r.s}%"></i></div></div><div class="why"><span class="role">${esc(r.role)}.</span> ${esc(r.why)}<div class="sub">Fit ${r.fit}/5 · Relationship ${r.relationship}/5 · Overlap ${r.overlap}/5</div></div><span class="score">${r.s}</span></div>`).join("");
   const ag=[...new Set((b.workstreams||[]).flatMap(w=>[w.responsible,w.accountable,w.consulted]).filter(Boolean))];
   if(!ag.includes("Digitas")) ag.unshift("Digitas");
-  const raci=(b.workstreams||[]).map(w=>`<tr><td class="dim">${esc(w.name)}</td>${ag.map(a=>{const c=w.responsible===a?"R":w.accountable===a?"A":w.consulted===a?"C":"";return `<td class="c ${c}">${c||"–"}</td>`;}).join("")}</tr>`).join("");
+  const raci=(b.workstreams||[]).map(w=>`<tr><td class="dim">${esc(w.name)}</td>${ag.map(a=>{const c=[w.responsible===a?"R":"",w.accountable===a?"A":"",w.consulted===a?"C":""].filter(Boolean).join("/");return `<td class="c ${c}">${c||"–"}</td>`;}).join("")}</tr>`).join("");
   const fee=b.fee||0;
   const totalShare=(b.workstreams||[]).reduce((s,w)=>s+(+w.share||0),0)||1;
   const byAg={}; (b.workstreams||[]).forEach(w=>{byAg[w.responsible]=(byAg[w.responsible]||0)+(+w.share||0);});
@@ -404,7 +404,7 @@ function renderInternal(){
   <div class="progress"><span class="on">1 · Rank partners</span><span class="${b.workstreams?.length?"on":""}">2 · Split tasks</span><span class="${b.fee?"on":""}">3 · Split revenue</span><span class="${b.contract?.length?"on":""}">4 · Contract</span></div>
   <section class="support"><div class="support-head"><span class="eyebrow">Opportunity</span><div class="client-line"><b>${esc(b.opportunity?.client)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":cur().source==="builtin"?"Instant draft":"Example"}</span></div><p class="note">${esc(b.opportunity?.source)} · Need: ${esc(b.opportunity?.need)}</p></div>
     ${b.lead?`<div class="decision"><b>Lead agency:</b> ${esc(b.lead.agency)}. ${esc(b.lead.why)}</div>`:""}
-    ${(()=>{const ex=INT_EXAMPLES.find(x=>x.id===cur().pick);return ex&&ex.sources&&cur().source!=="ai"?`<div class="sources"><span class="eyebrow">Public sources</span>${ex.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("")}</div>`:"";})()}</section>
+    ${(()=>{const ex=INT_EXAMPLES.find(x=>x.id===cur().pick);return ex&&ex.sources?`<div class="sources"><span class="eyebrow">Public sources</span>${ex.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("")}</div>`:"";})()}</section>
   <section class="support"><div class="support-head"><span class="eyebrow">Step 1</span><h2>Which sister agencies to bring in</h2><span class="addon">Add-on: ranking model</span></div>
     <p class="note">Publicis Groupe sister agencies only. Score out of 100 = 50% capability fit + 30% existing client relationship + 20% low overlap with Digitas. The demo ranks 10 agencies; the full build would cover the whole Publicis network.</p><div class="rank">${rank}</div></section>
   <section class="support"><div class="support-head"><span class="eyebrow">Step 2</span><h2>Who does what</h2><span class="addon">Add-on: task delegation</span></div>
@@ -421,8 +421,8 @@ function renderInternal(){
     <div class="contract">${contract}</div>
     <div class="two"><div class="side"><span class="eyebrow">Kickoff checklist</span><ul>${(b.kickoff||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div class="side"><span class="eyebrow">Risks to plan for</span><ul>${(b.risks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>
     <div class="copyrow"><button class="btn ghost small" id="copy" type="button">Copy template and split</button><span class="note" id="copyStatus" role="status"></span></div></section>`;
-  $("#fee").addEventListener("change",e=>{b.fee=Math.max(0,+e.target.value||0);renderInternal();});
-  document.querySelectorAll("input.pct").forEach(inp=>inp.addEventListener("change",e=>{b.workstreams[+e.target.dataset.i].share=Math.max(0,+e.target.value||0);renderInternal();}));
+  $("#fee").addEventListener("change",e=>{b.fee=Math.max(0,+e.target.value||0);syncContract(b);renderInternal();});
+  document.querySelectorAll("input.pct").forEach(inp=>inp.addEventListener("change",e=>{setShare(b,+e.target.dataset.i,+e.target.value||0);syncContract(b);renderInternal();}));
   $("#copy").addEventListener("click",copy);
 }
 
@@ -552,12 +552,13 @@ async function copy(){const s=$("#copyStatus"),t=summaryText();try{await navigat
 /* ---------- Prompts ---------- */
 const CONTEXT=`Context: Digitas is a full-service agency inside Publicis Groupe. Its Power of One model lets sister agencies work on shared clients, but friction comes from unclear ownership of strategy and client relationship, unclear scope lines, and revenue credit, because each agency has its own growth goals. Digitas says the fix is being explicit up front about who owns what. Externally, clients hire Digitas for one job and give the rest to specialists; it loses on price and to incumbents because clients can't see connected value up front. Clients buy named people and chemistry. Digitas must not claim to do everything: work outside its five capabilities goes to a sister agency or the client's current specialist.`;
 const INT_SCHEMA=`{"opportunity":{"client":"","source":"","need":""},"ranking":[{"agency":"","fit":0,"relationship":0,"overlap":0,"role":"","why":""}],"lead":{"agency":"","why":""},"workstreams":[{"name":"","responsible":"","accountable":"","consulted":"","share":0}],"fee":0,"feeNote":"","contract":[{"title":"","text":""}],"kickoff":[""],"risks":[""]}`;
-const INT_RULES=`Rank 4-6 Publicis Groupe sister agencies from this list only (never agencies outside Publicis; non-Publicis partners such as a client's other holding company may appear only in the contract's communication section): ${Object.entries(AGENCIES).map(([a,d])=>`${a} (${d})`).join("; ")}. Scores are integers 0-5: fit = how well its capability matches the need; relationship = how strong its existing tie to this client is (5 if it owns the client); overlap = how much it duplicates Digitas (5 = heavy overlap). Workstreams: 4-6, each with one responsible, one accountable and one consulted party (use "Digitas" or agency names), and share = percent of total effort; shares must add up to 100. Digitas must be responsible for at least one workstream that matches its five capabilities (Creative Experiences, Integrated Media, Addressable Relationships, Total Commerce, Social Transformation). fee = the user's estimate in whole dollars, or 0 if none given. Contract: exactly 6 sections with these titles in order: "Project scope and objectives" (agencies, client, objectives, deliverables, timeline), "Lead agency and responsibilities" (lead from the ranking, who leads each workstream), "Client ownership and revenue allocation" (who manages the client, revenue split, credit), "Communication and decision-making" (meeting frequency, reporting, approval authority), "Dispute resolution" (what happens when agencies disagree on scope), "Approvals and sign-off" (who signs, when, signature lines). Write it as a reusable fill-in template with [Client]-style placeholders where facts are missing. 4 kickoff items, 3 risks. Use only facts the user gives; never invent clients or figures. If the user gives only a company name: treat it as a hypothetical Publicis opportunity with that company, describe its likely marketing need from widely known public facts only (no figures you are unsure of), set opportunity.source to "Hypothetical opportunity, based on general public knowledge", set relationship scores to 1-2 unless a Publicis tie is widely known, set fee to an illustrative whole number between 2000000 and 20000000 and feeNote to "Illustrative fee for the demo, not a reported figure", and put anything to confirm in risks.`;
+const INT_RULES=`Rank 4-6 Publicis Groupe sister agencies from this list only (never agencies outside Publicis; non-Publicis partners such as a client's other holding company may appear only in the contract's communication section): ${Object.entries(AGENCIES).map(([a,d])=>`${a} (${d})`).join("; ")}. Scores are integers 1-5: fit = how well its capability matches the need; relationship = how strong its existing tie to this client is (5 if it owns the client); overlap = how much it duplicates Digitas (5 = heavy overlap). Workstreams: 4-6, each with one responsible, one accountable and one consulted party (use "Digitas" or agency names), and share = percent of total effort; shares must add up to 100. Digitas must be responsible for at least one workstream that matches its five capabilities (Creative Experiences, Integrated Media, Addressable Relationships, Total Commerce, Social Transformation). fee = the user's estimate in whole dollars, or 0 if none given. Contract: exactly 6 sections with these titles in order: "Project scope and objectives" (agencies, client, objectives, deliverables, timeline), "Lead agency and responsibilities" (lead from the ranking, who leads each workstream), "Client ownership and revenue allocation" (who manages the client, revenue split, credit), "Communication and decision-making" (meeting frequency, reporting, approval authority), "Dispute resolution" (what happens when agencies disagree on scope), "Approvals and sign-off" (who signs, when, signature lines). Write it as a reusable fill-in template with [Client]-style placeholders where facts are missing. 4 kickoff items, 3 risks. Use only facts the user gives; never invent clients or figures. If the user gives only a company name: treat it as a hypothetical Publicis opportunity with that company, describe its likely marketing need from widely known public facts only (no figures you are unsure of), set opportunity.source to "Hypothetical opportunity, based on general public knowledge", set relationship scores to 1-2 unless a Publicis tie is widely known, set fee to an illustrative whole number between 2000000 and 20000000 and feeNote to "Illustrative fee for the demo, not a reported figure", and put anything to confirm in risks.`;
 const EXT_SCHEMA=`{"client":{"name":"","industry":"","ask":""},"diagnosis":"","needs":[{"type":"stated|hidden","need":""}],"capabilities":[{"name":"","status":"entry|connect|later|off","step":1,"link":"","why":""}],"comparison":[{"dimension":"","specialists":"","digitas":""}],"proof":[{"id":"","relevance":""}],"opener":"","ladder":{"discovery":{"weeks":"1–2 weeks","fee":15000,"deliverables":[""]},"pilot":{"name":"","weeks":8,"fee_low":50000,"fee_high":90000,"focus":"","stages":[{"weeks":"","what":"","client_receives":""}],"kpis":[{"metric":"","baseline":"","target":""}]},"partnership":"","referral":""},"benefits_client":[""],"benefits_digitas":[""],"implementation":{"team":[{"role":"","does":""}],"outreach":[""],"verify":[""]},"risks":[""]}`;
 const EXT_RULES=`Use ONLY the facts given about the prospect; anything assumed goes in implementation.verify. Proof ids allowed: ${Object.entries(PROOF).map(([id,r])=>`${id} (${r.client}: ${r.result})`).join("; ")}. Capabilities (exact): ${CAPS.join(", ")}; exactly one "entry", one or two "connect". Prefer problems that cross boundaries, like commerce plus loyalty or media connected to CRM. Ladder: discovery 1-2 weeks, fixed fee 10000-25000, 3 deliverables (diagnosis, integration map, trial plan); pilot 6-8 weeks, fee 40000-120000, one question, four stages in order (Analyze the problem, Develop targeted strategy, Launch pilot, Present results) with client_receives, 3 KPIs ("Client to provide" when unknown); partnership = what happens if satisfied, with fees credited to year one; referral = discount for clients referred by a Publicis sister agency. 3 team roles (no names), 3 outreach steps, 3 verify items, 3 risks.`;
 
 function factsBlock(){ const p=mode==="external"&&cur().pick&&PROSPECTS.find(x=>x.id===cur().pick); return p?`Prospect: ${p.name}\nPublic facts:\n- ${p.facts.join("\n- ")}`:"Facts: only what the user says in the conversation."; }
 function chatPrompt(){
+  if(mode==="internal") return tailoringPrompt();
   const isInt=mode==="internal";
   return `You are the Digitas Connector Agent, a prototype add-on to Digitas's internal AI platform. ${isInt?"INTERNAL MODE: help Digitas team with Publicis sister agencies on an opportunity: rank partners, split tasks, split revenue, and draft a joint engagement template.":"EXTERNAL MODE: build an implementable pitch outline and trial ladder for a prospective client."}
 ${CONTEXT}
@@ -589,13 +590,119 @@ Output to review: ${JSON.stringify(cur().board)}
 Return only JSON: {"critique":["3-5 specific problems, one sentence each"],"changes":"one sentence","board":${isInt?INT_SCHEMA:EXT_SCHEMA}}`;
 }
 
+// Local controls are the source of truth. AI may only tailor descriptive text.
+let revision=0;
+const validAgency=a=>a==='Digitas'||Object.prototype.hasOwnProperty.call(AGENCIES,a);
+function normalizeShares(rows,total=100){
+  const weights=rows.map(w=>Number.isFinite(+w.share)?Math.max(0,+w.share):0);
+  const sum=weights.reduce((a,b)=>a+b,0); let left=total;
+  rows.forEach((w,i)=>{w.share=i===rows.length-1?left:Math.min(left,Math.round(total*(sum?weights[i]/sum:1/rows.length)));left-=w.share;});
+}
+function setShare(b,index,value){
+  const target=b.workstreams[index]; target.share=Math.max(0,Math.min(100,Math.round(value)));
+  normalizeShares(b.workstreams.filter((_,i)=>i!==index),100-target.share); revision++;
+}
+function syncContract(b){
+  revision++;
+  const lead=b.lead.agency.replace(/ \(assumed\)$/,'');
+  const team=[...new Set([lead,...b.workstreams.map(w=>w.responsible)])];
+  const template=builtInPlan(b.opportunity.client,'').contract;
+  b.contract=template.map((c,i)=>b.contract?.[i]?.text?{title:c.title,text:b.contract[i].text}:c);
+  b.contract[0].text=`Agencies: ${team.join(', ')}. Client: ${b.opportunity.client}. Objective: ${b.opportunity.need}. Deliverables: per the task split. Timeline: [start] to [end].`;
+  b.contract[1].text=`${b.lead.agency} is lead agency. ${b.workstreams.map(w=>`${w.name}: ${w.responsible} responsible; ${w.accountable} accountable`).join('. ')}. Changes require written agreement.`;
+  b.contract[2].text=`${b.lead.agency} manages the ${b.opportunity.client} relationship. Joint fee: ${fmt(b.fee)}. ${b.workstreams.map(w=>`${w.responsible}: ${w.share}% for ${w.name}`).join('; ')}. Each agency joins planning for its workstream and receives case-study credit. Allocation is illustrative and requires approval.`;
+  b.contract[5].text=`Signed by account and finance leads before work starts. Signatures: ${team.map(a=>`____ (${a})`).join(' ')}.`;
+}
+function addAgency(b,agency){
+  if(!b.workstreams.some(w=>w.responsible===agency)){
+    b.workstreams.push({name:AGENCIES[agency]||'Customer experience and coordination',responsible:agency,accountable:b.lead.agency.replace(/ \(assumed\)$/,''),consulted:agency==='Digitas'?'Starcom':'Digitas',share:10});
+    normalizeShares(b.workstreams);
+  }
+  if(agency!=='Digitas'&&!b.ranking.some(r=>r.agency===agency)){
+    if(b.ranking.length>=6) b.ranking.pop();
+    b.ranking.push({agency,fit:3,relationship:1,overlap:2,role:AGENCIES[agency],why:'Added at your request; confirm fit and scope.'});
+  }
+}
+function localAction(text){
+  revision++; addMsg('user',text); $('#input').value='';
+  let b=cur().board, reply='';
+  const named=companyFrom(text);
+  const agency=['Digitas',...Object.keys(AGENCIES)].find(a=>text.toLowerCase().includes(a.toLowerCase()));
+  if(/^(hi|hello|hey|thanks|thank you)[!.\s]*$/i.test(text)) reply='Hi! Enter a company or ask me to change the lead, agencies, fee or shares.';
+  else if(named || (!agency && !/friction|fee|budget|lead|share|remove|add|build the full/i.test(text) && text.split(/\s+/).length<=5) || !b){
+    const name=named||(/build the full/i.test(text)?'New client':text.slice(0,100));
+    cur().pick='own'; cur().source='builtin'; b=cur().board=builtInPlan(name,text); syncContract(b);
+    reply=`Built a complete hypothetical draft for ${name}, based on general public knowledge. Confirm the scope and assumptions.`;
+  } else if(/friction|risk/i.test(text)) reply=b.risks.join('\n')+'\nAgree on scope, client ownership, approval rights and revenue before kickoff.';
+  else if(/\bremove\b/i.test(text)&&agency){
+    if(agency==='Digitas') reply='Digitas needs a responsible workstream in this prototype; its scope can be reduced instead.';
+    else {
+      const lead=b.lead.agency.replace(/ \(assumed\)$/,'');
+      if(lead===agency) b.lead={agency:'Digitas',why:'Digitas coordinates after the previous lead was removed.'};
+      b.workstreams=b.workstreams.filter(w=>w.responsible!==agency);
+      b.workstreams.forEach(w=>{if(w.accountable===agency)w.accountable=b.lead.agency;if(w.consulted===agency)w.consulted=w.responsible==='Digitas'?'Starcom':'Digitas';});
+      b.ranking=b.ranking.filter(r=>r.agency!==agency);
+      for(const r of builtInPlan(b.opportunity.client,'').ranking) if(b.ranking.length<4 && r.agency!==agency&&!b.ranking.some(x=>x.agency===r.agency))b.ranking.push(r);
+      normalizeShares(b.workstreams);syncContract(b);reply=`Removed ${agency} and rebalanced the split to 100%.`;
+    }
+  } else if(/\blead\b/i.test(text)&&agency){
+    addAgency(b,agency); b.lead={agency,why:'Selected by you to coordinate the opportunity.'};
+    b.workstreams.forEach(w=>w.accountable=agency);syncContract(b);reply=`${agency} now leads. The RACI and agreement match.`;
+  } else if(/bigger share|increase.*share/i.test(text)&&agency){
+    addAgency(b,agency); const rows=b.workstreams.filter(w=>w.responsible===agency),others=b.workstreams.filter(w=>w.responsible!==agency);
+    const total=Math.min(90,rows.reduce((s,w)=>s+w.share,0)+10);normalizeShares(rows,total);normalizeShares(others,100-total);syncContract(b);reply=`Increased ${agency}'s share; the total remains 100%.`;
+  } else if(/\badd\b/i.test(text)&&agency){addAgency(b,agency);syncContract(b);reply=`${agency} is included in the task split and agreement.`;}
+  else if(/fee|budget/i.test(text)&&feeFrom(text)){b.fee=feeFrom(text);b.feeNote='Fee supplied by you.';syncContract(b);reply=`Set the joint fee to ${fmt(b.fee)} and updated the agreement.`;}
+  else reply='The draft is ready. Try “Make Starcom the lead”, “Add MSL”, “Set the fee to $2M”, or describe a company called [name] that needs [scope].';
+  addMsg('ai',reply); renderPicks();render();chips();
+  if(named) tailor();
+}
+function localCritique(){
+  const b=cur().board;if(!b)return 'Enter a company first to build a complete draft.';
+  const fixes=[];
+  if(!validAgency(b.lead?.agency?.replace(/ \(assumed\)$/,''))){b.lead={agency:'Digitas',why:'Coordinates the team.'};fixes.push('restored one valid lead');}
+  if(!b.workstreams.some(w=>w.responsible==='Digitas')){addAgency(b,'Digitas');fixes.push('added a Digitas workstream');}
+  b.workstreams.forEach(w=>{for(const key of ['responsible','accountable','consulted'])if(!validAgency(w[key])){w[key]=key==='accountable'?b.lead.agency.replace(/ \(assumed\)$/,''):'Digitas';fixes.push('repaired RACI');}});
+  if(b.workstreams.reduce((s,w)=>s+(+w.share||0),0)!==100||b.workstreams.some(w=>!Number.isFinite(+w.share)||+w.share<0)){normalizeShares(b.workstreams);fixes.push('normalized shares');}
+  b.ranking=b.ranking.filter(r=>Object.prototype.hasOwnProperty.call(AGENCIES,r.agency)).slice(0,6);
+  b.ranking.forEach(r=>['fit','relationship','overlap'].forEach(k=>r[k]=Math.max(1,Math.min(5,Math.round(+r[k]||1)))));
+  syncContract(b);
+  const overlap=b.ranking.filter(r=>r.overlap>=4).map(r=>r.agency);
+  return `${fixes.length?fixes.join('; '):'Checked: one lead, one R and A per task, Digitas scope, 100% shares and all six contract sections'}. Sections 2 and 3 match the split. ${overlap.length?'Confirm scope boundaries for '+overlap.join(', ')+'.':'Confirm scope boundaries with the team.'} All assumptions still need human review.`;
+}
+function tailoringPrompt(){
+  const b=cur().board;
+  return `Return JSON only with optional changed wording: {"need":"one sentence","reasons":[{"agency":"existing agency","why":"one short sentence"}],"workstreams":[{"index":0,"name":"short title"}]}. Under 300 words. Hypothetical student plan based on general public knowledge, not verified company facts. Do not invent relationships, budgets, statistics or company initiatives. Preserve scope and responsibilities. No full board. Draft: ${JSON.stringify({client:b.opportunity.client,need:b.opportunity.need,ranking:b.ranking.map(r=>({agency:r.agency,role:r.role})),workstreams:b.workstreams.map((w,index)=>({index,name:w.name,responsible:w.responsible}))})}`;
+}
+function applyTailoring(b,patch){
+  let changed=false;
+  const safe=(v,max)=>typeof v==='string'&&v.trim()&&v.length<=max;
+  if(safe(patch.need,240)){b.opportunity.need=patch.need;changed=true;}
+  if(Array.isArray(patch.reasons))patch.reasons.slice(0,6).forEach(p=>{const r=b.ranking.find(r=>r.agency===p?.agency);if(r&&safe(p.why,240)){r.why=p.why;changed=true;}});
+  if(Array.isArray(patch.workstreams))patch.workstreams.slice(0,10).forEach(p=>{if(p&&Number.isInteger(p.index)&&b.workstreams[p.index]&&safe(p.name,100)){b.workstreams[p.index].name=p.name;changed=true;}});
+  if(changed)syncContract(b);return changed;
+}
+async function tailor(){
+  if(!live)return;
+  const st=cur(), b=st.board, version=revision;
+  addMsg('ai','Optional live tailoring is running; you can keep editing.');
+  try{
+    const patch=await callAI(tailoringPrompt());
+    if(mode!=='internal'||st.board!==b||revision!==version)return;
+    if(!applyTailoring(b,patch))throw new Error('No usable tailoring');
+    st.source='ai';render();addMsg('ai','Live wording applied. The plan remains hypothetical; please confirm the assumptions.');
+  }catch(_){if(mode==='internal'&&st.board===b&&revision===version)addMsg('ai','Live AI is busy. Your complete instant draft is ready to use and edit.');}
+}
+
 /* ---------- AI calls ---------- */
 function merge(next){ if(!next) return; const b=cur().board||{}; for(const [key,v] of Object.entries(next)){ if(v===null||v===undefined||v==="") continue; if(Array.isArray(v)&&!v.length) continue; b[key]=v; } cur().board=b; }
 function guard(){ if(!live){ addMsg("ai","Live AI isn't connected right now. The examples still show the full output.","err"); return false; } return !busy; }
 function lock(v){ busy=v; ["#send","#refine"].forEach(s=>$(s).disabled=v); document.querySelectorAll(".pbtn,.chip,.tab").forEach(x=>x.disabled=v); }
 function fail(e){ const c=e&&e.code; addMsg("ai",c==="no_key"?"The site's AI key isn't set up yet.":c==="rate_limited"?"The free AI limit was hit. Wait a minute and try again.":c==="invalid_json"?"The answer came back incomplete. Try again.":"Something went wrong. Try again.","err"); }
 async function send(text){
-  text=(text||"").trim(); if(!text||!guard()) return;
+  text=(text||"").trim(); if(!text) return;
+  if(mode==="internal"){ localAction(text); return; }
+  if(!guard()) return;
   cur().messages.push({role:"user",content:text}); addMsg("user",text); $("#input").value=""; lock(true);
   const t=addMsg("ai","Thinking…","typing",false);
   try{ const r=await callAI(chatPrompt()); t.remove();
@@ -609,6 +716,7 @@ async function send(text){
   finally{ lock(false); }
 }
 async function refine(){
+  if(mode==="internal"){ for(let i=1;i<=+$("#rounds").value;i++) addMsg("ai",`Round ${i}: ${localCritique()}`,"critique"); render(); chips(); return; }
   if(!guard()) return; if(!cur().board){ addMsg("ai","Build an output first, then I can critique it.","err"); return; }
   const n=+$("#rounds").value; lock(true);
   for(let i=1;i<=n;i++){ const t=addMsg("ai",`Reviewing (round ${i} of ${n})…`,"typing",false);
@@ -724,28 +832,23 @@ function builtInPlan(name,text){
     kickoff:["Confirm the real scope and who owns the client today","Agree on the task split and sign the template","Set one shared KPI dashboard","Book the weekly joint status meeting"],
     risks:["This is a draft from general knowledge; the real need may differ.","Another Publicis agency may already own part of this scope.","Revenue shares need sign-off from each agency's finance lead."]};
 }
-$("#coForm").addEventListener("submit",async e=>{e.preventDefault();const n=$("#co").value.trim();if(!n||busy) return;
-  pick("own"); const st=cur(); const ask=`Company: ${n}. Build the full breakdown: which Publicis sister agencies to bring in, who does what, the revenue split and the agreement.`;
-  st.board=builtInPlan(n); st.source="builtin"; st.messages.push({role:"user",content:ask}); addMsg("user",ask); render(); chips();
-  if(!live){ addMsg("ai",`Here's an instant draft for ${n}. Edit the fee or shares on the right.`); return; }
-  addMsg("ai",`Here's an instant draft for ${n}. Live AI is now tailoring it; this can take up to a minute.`); lock(true);
-  const t=addMsg("ai","Tailoring with live AI…","typing",false);
-  try{ const r=await callAI(chatPrompt()); t.remove(); const reply=r?.reply||"Updated with live AI."; st.messages.push({role:"assistant",content:reply}); addMsg("ai",reply); if(r?.board){ merge(r.board); st.source="ai"; render(); } chips(); }
-  catch(err){ t.remove(); addMsg("ai","Live AI is busy right now, so you're seeing the built-in draft. It's complete: edit the fee or shares, or try again in a minute."); }
-  finally{ lock(false); }
+$("#coForm").addEventListener("submit",e=>{e.preventDefault();const n=$("#co").value.trim();if(!n) return;
+  pick("own"); const st=cur(); st.board=builtInPlan(n,n); st.source="builtin"; syncContract(st.board);
+  addMsg("user",`Company: ${n}`); addMsg("ai",`Here's an instant hypothetical draft for ${n}. Edit the fee or shares, or use the chat controls.`); render(); chips(); tailor();
 });
 
 pick("pepsico");
 async function callAI(prompt){
-  const r=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
-  let j=null; try{ j=await r.json(); }catch(_){}
-  if(!r.ok) throw {code:(j&&j.code)||"error",message:(j&&j.error)||"error"};
-  if(!j||typeof j!=="object") throw {code:"invalid_json"};
-  return j;
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),19000);
+  try {
+    const r=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt}),signal:controller.signal});
+    const j=await r.json(); if(!r.ok||!j||typeof j!=="object"||Array.isArray(j)) throw {code:j?.code||"invalid_json"}; return j;
+  } finally { clearTimeout(timer); }
 }
+
 (async()=>{
-  try{ const r=await fetch("/api/agent"); const j=await r.json(); live=!!(j&&j.ok); }catch(_){ live=false; }
-  $("#mode").textContent=live?"Live AI":"Demo only"; $("#mode").classList.toggle("live",live);
+  try{ const r=await fetch("/api/agent"); const j=await r.json(); live=!!(r.ok&&j&&j.ok); }catch(_){ live=false; }
+  $("#mode").textContent=live?"Live AI configured":"Instant drafts"; $("#mode").classList.toggle("live",live);
   if(!live) $("#aiNote").textContent="Live AI isn't connected right now. The examples still show the full output.";
 })();
 </script>
