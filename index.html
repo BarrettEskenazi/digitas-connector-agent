@@ -601,7 +601,12 @@ async function send(text){
   try{ const r=await callAI(chatPrompt()); t.remove();
     const reply=r?.reply||"Updated."; cur().messages.push({role:"assistant",content:reply}); addMsg("ai",reply);
     if(r?.board){ merge(r.board); cur().source="ai"; render(); } chips(); }
-  catch(e){ t.remove(); cur().messages.pop(); fail(e); } finally{ lock(false); }
+  catch(e){ t.remove();
+    const nm=companyFrom(text); const isNew=mode==="internal"&&e&&e.code!=="no_key"&&(nm||!cur().board);
+    if(isNew){ const name=nm||"New client"; cur().board=builtInPlan(name,text); cur().source="builtin"; render(); chips();
+      addMsg("ai",`Live AI is busy right now, so here's an instant built-in draft for ${name}. It's complete: edit the fee or shares on the right, or try again in a minute for a tailored version.`); }
+    else { cur().messages.pop(); if(mode==="internal"&&cur().board&&e&&e.code!=="no_key") addMsg("ai","Live AI is busy right now, so I can't make that change yet. The plan on the right is still complete; edit the fee or shares directly, or try again in a minute."); else fail(e); } }
+  finally{ lock(false); }
 }
 async function refine(){
   if(!guard()) return; if(!cur().board){ addMsg("ai","Build an output first, then I can critique it.","err"); return; }
@@ -676,6 +681,9 @@ const SECTORS={
  travel:{label:"travel and hospitality",need:"Fill rooms and seats by bringing back members and lifting direct bookings",lead:"Digitas",fee:4000000,
   rank:[["Epsilon",5,2,2,"Member data and identity","Loyalty members drive direct bookings."],["Starcom",4,2,3,"Media planning and buying","Seasonal and destination reach."],["Performics",4,2,3,"Search and performance","Travelers search and compare online."],["Publicis Sapient",4,1,1,"Booking platform","Booking flow and app experience."],["Saatchi & Saatchi",3,1,4,"Brand creative","Only for big brand campaigns."]],
   ws:[["Loyalty and personalized offers","Digitas",35],["Media planning and buying","Starcom",25],["Member data and identity","Epsilon",15],["Search and performance","Performics",15],["Booking platform improvements","Publicis Sapient",10]]},
+ social:{label:"social-first",need:"Build social media presence and community with creator-led content and paid social",lead:"Digitas",fee:500000,
+  rank:[["Starcom",4,2,3,"Paid social media","Paid reach on social platforms."],["Epsilon",4,1,2,"Audience data","Finds and targets the right audiences."],["Performics",4,1,3,"Search and performance","Turns attention into sign-ups."],["MSL",3,1,1,"Public relations","Earned media and launch buzz."],["Saatchi & Saatchi",3,1,4,"Brand creative","Only if a brand campaign is in scope."]],
+  ws:[["Social strategy, content and creators","Digitas",45],["Paid social media","Starcom",25],["Audience data","Epsilon",15],["Search and performance","Performics",10],["Public relations","MSL",5]]},
  health:{label:"health and wellness",need:"Reach the right patients or consumers with compliant, personalized education and offers",lead:"Digitas",fee:4000000,
   rank:[["Epsilon",5,2,2,"Privacy-safe audiences","Health targeting needs compliant data."],["Starcom",4,2,3,"Media planning and buying","Awareness and education reach."],["MSL",4,1,1,"Public relations","Health news and trust moments."],["Performics",4,1,3,"Search and performance","People search symptoms and products."],["Publicis Sapient",3,1,1,"Digital platforms","Patient or member portals."]],
   ws:[["Personalized education and CRM","Digitas",35],["Media planning and buying","Starcom",25],["Privacy-safe audiences","Epsilon",15],["Search and performance","Performics",15],["Public relations","MSL",10]]}
@@ -691,18 +699,23 @@ const BRAND_SECTOR={nike:"retail",adidas:"retail",puma:"retail","under armour":"
 function sectorOf(name){const n=name.toLowerCase();for(const [k,v] of Object.entries(BRAND_SECTOR)){ if(n.includes(k)) return v; }
  if(/bank|financ|insur|credit|capital|pay/.test(n)) return "finance"; if(/motor|auto|car/.test(n)) return "auto"; if(/hotel|air|cruise|resort|travel/.test(n)) return "travel";
  if(/health|pharma|clinic|care|med/.test(n)) return "health"; if(/burger|pizza|grill|cafe|coffee|kitchen|chicken/.test(n)) return "qsr"; if(/tech|soft|labs|\.ai|data|cloud/.test(n)) return "tech"; return null; }
-function builtInPlan(name){
-  const key=sectorOf(name), S=SECTORS[key||"cpg"], known=!!key;
+function feeFrom(t){const m=(t||"").replace(/,/g,"").match(/\$?\s*(\d+(?:\.\d+)?)\s*(k|m|mm|million|thousand|b|billion)?\b(?=[^.]*?(budget|fee|spend|\$)|\s*(budget|dollars))/i)||(t||"").replace(/,/g,"").match(/\$\s*(\d+(?:\.\d+)?)\s*(k|m|mm|million|thousand|b|billion)?/i);
+ if(!m) return null; let v=parseFloat(m[1]); const u=(m[2]||"").toLowerCase(); if(u==="k"||u==="thousand") v*=1e3; else if(u==="m"||u==="mm"||u==="million") v*=1e6; else if(u==="b"||u==="billion") v*=1e9; return v>=1000?Math.round(v):null;}
+function companyFrom(t){const m=t.match(/(?:company called|called|named|client is|company is|company:)\s*([A-Za-z0-9][\w&.'’-]*(?:\s+[A-Za-z0-9][\w&.'’-]*){0,3}?)(?=\s+(?:that|which|who|needs|wants|is|with|and)\b|[.,]|$)/i);
+ return m?m[1].trim():null;}
+function builtInPlan(name,text){
+  text=text||""; const social=/social|creator|influencer|tiktok|instagram|content/i.test(text);
+  const key=social?"social":(sectorOf(name+" "+text)), S=SECTORS[key||"cpg"], known=!!key;
   const ranking=S.rank.map(([agency,fit,relationship,overlap,role,why])=>({agency,fit,relationship,overlap,role,why}));
   const workstreams=S.ws.map(([n,resp,share])=>({name:n,responsible:resp,accountable:resp===S.lead?resp:(resp==="Digitas"?"Digitas":S.lead),consulted:resp==="Digitas"?ranking[0].agency:"Digitas",share}));
   const team=[...new Set([S.lead,...S.ws.map(w=>w[1])])];
   const others=team.filter(a=>a!==S.lead);
   return {
-    opportunity:{client:name,source:`Built-in draft${known?` for a ${S.label} brand`:""}. Hypothetical opportunity, based on general public knowledge; check every detail.`,need:S.need},
-    ranking, lead:{agency:S.lead,why:S.lead==="Digitas"?"The core need is customer experience, CRM and personalization, which is Digitas's strength.":`Media is the biggest piece of work, so ${S.lead} leads. Digitas owns social, content and personalization and connects them to media and data.`},
-    workstreams, fee:S.fee, feeNote:"Illustrative fee only, not a reported number. Edit it to match the real opportunity.",
+    opportunity:{client:name,source:`Built-in draft${known?` for a ${S.label} brand`:""}. Hypothetical opportunity, based on general public knowledge; check every detail.`,need:(()=>{const m=text.match(/\b(?:needs?|wants?|looking for)\s+(.+?)(?:\s+with\s+(?:a\s+)?\$?[\d,.]+\s*\w*\s*budget.*)?$/i);const n=m?m[1]:"";return n&&n.length<200?n.charAt(0).toUpperCase()+n.slice(1):S.need;})()},
+    ranking, lead:{agency:S.lead,why:key==="social"?"Social strategy, content and creators are the core of the work and a Digitas strength, so Digitas leads.":S.lead==="Digitas"?"The core need is customer experience, CRM and personalization, which is Digitas's strength.":`Media is the biggest piece of work, so ${S.lead} leads. Digitas owns social, content and personalization and connects them to media and data.`},
+    workstreams, fee:feeFrom(text)||S.fee, feeNote:feeFrom(text)?"Fee taken from your message. Edit it if needed.":"Illustrative fee only, not a reported number. Edit it to match the real opportunity.",
     contract:[
-     {title:"Project scope and objectives",text:`Agencies: ${team.join(", ")}. Client: ${name}. Objective: ${S.need.charAt(0).toLowerCase()+S.need.slice(1)}. Deliverables: per the task split. Timeline: [start] to [end].`},
+     {title:"Project scope and objectives",text:`Agencies: ${team.join(", ")}. Client: ${name}. Objective: ${(S.need).charAt(0).toLowerCase()+S.need.slice(1)}. Deliverables: per the task split. Timeline: [start] to [end].`},
      {title:"Lead agency and responsibilities",text:`${S.lead} is lead agency. Each workstream's responsible and accountable agency follows the task split. Work outside it needs a written change request.`},
      {title:"Client ownership and revenue allocation",text:`${S.lead} manages the ${name} relationship; ${others.join(", ")} join planning meetings for their workstreams. Fees follow the revenue table. Case studies and awards credit every agency with a responsible role.`},
      {title:"Communication and decision-making",text:"One weekly joint status meeting and one shared plan. The accountable agency makes the final call on its workstream. The client sees one team and one point of contact."},
