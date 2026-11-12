@@ -24,7 +24,9 @@ requiring business-model verification. This is not live company research.
 Full AI proposals are validated before replacing the draft: required sections,
 Publicis-only agencies, 4–6 ranked candidates, one R/A/C per workstream, Digitas
 scope, reasonable scores, four phases and valid fees. Shares normalize to 100%.
-Invalid or stale answers preserve the full draft and any user edits.
+Both wrapped and unwrapped complete JSON responses are accepted; blank phase
+separators are ignored. Invalid or stale answers preserve the full draft and any
+user edits. Consultation and phase owners stay within the delivery team.
 
 Costs are transparent working estimates: editable hours × cost/hour for each
 workstream, a shared delivery reserve, and optional pass-through media/third-party
