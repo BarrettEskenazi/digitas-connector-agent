@@ -46,8 +46,8 @@ async function tryProvider(provider, key, deadline, tried) {
       try {
         const r = await request(groq ? `${GROQ}/chat/completions` : `${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
           method:'POST', headers:groq ? {'Content-Type':'application/json',Authorization:`Bearer ${key}`} : {'Content-Type':'application/json','x-goog-api-key':key},
-          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:{type:'json_object'},temperature:0.3,max_completion_tokens:1200} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:1200}})
-        }, deadline);
+          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?6500:1200} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?6500:1200}})
+        }, deadline, tried.fullProposal?16000:5500);
         if (!r.ok) {
           tried.push(`${id}: ${r.status}`);
           if ([401,403].includes(r.status)) return null;
@@ -75,9 +75,9 @@ module.exports = async (req,res) => {
   if (typeof body==='string') { try { body=JSON.parse(body); } catch (_) { body=null; } }
   if (typeof body?.prompt!=='string' || !body.prompt.trim() || body.prompt.length>16000) return res.status(400).json({code:'bad_request',error:'Invalid prompt'});
   if (!groq&&!gemini) return res.status(503).json({code:'no_key',error:'Live tailoring is unavailable; use the instant draft.',tried:[]});
-  const deadline=Date.now()+TOTAL_MS, tried=[];
-  tried.prompt=body.prompt;
-  const result=await tryGroq(groq,Math.min(deadline,Date.now()+10000),tried) || await tryProvider('gemini',gemini,deadline,tried);
+  const deadline=Date.now()+(body.fullProposal===true?25000:TOTAL_MS), tried=[];
+  tried.prompt=body.prompt;tried.fullProposal=body.fullProposal===true;
+  const result=await tryGroq(groq,Math.min(deadline,Date.now()+(tried.fullProposal?18000:10000)),tried) || await tryProvider('gemini',gemini,deadline,tried);
   if (result) { res.setHeader('X-Model',result.model); return res.status(200).json(result.out); }
   return res.status(503).json({code:'unavailable',error:'Live tailoring is busy; the instant draft is ready.',tried});
 };

@@ -13,15 +13,31 @@ redistributes the remainder to keep 100%; fees, team changes and shares update
 the agreement. R/A appears when an agency holds both roles. PepsiCo source links
 are retained after changes; the original example and citations remain intact.
 
-AI is an optional wording enhancement. It receives a compact draft and may change
-only need, ranking reasons and workstream names. It cannot replace agencies,
-RACI, scores, fees, shares, source attribution or contract structure. Sections 2
-and 3 are filled from the local plan. Editing while AI runs discards stale replies.
-The client stops waiting after 19 seconds; the server has a 17-second total budget
-(including discovery, response bodies and retries), well below Vercel's 60 seconds.
-Groq is preferred, with up to 10 seconds before Gemini fallback. A 503 is retried
-once after 250ms. Unavailable/zero-quota models are temporarily skipped within a
-warm function instance; cold instances must discover availability again.
+Typing a company produces a complete proposal: company/audience brief, objectives,
+scope/exclusions, recommended agency team and ranking, workstream deliverables,
+four delivery phases with owners and KPIs, estimated costs, agency revenue,
+contribution and a six-section agreement. The instant draft is usable offline;
+Groq generates the full company-specific strategy, team, scope, pilot fee and plan.
+User-supplied fees are preserved. Unknown companies are explicitly marked as
+requiring business-model verification. This is not live company research.
+
+Full AI proposals are validated before replacing the draft: required sections,
+Publicis-only agencies, 4–6 ranked candidates, one R/A/C per workstream, Digitas
+scope, reasonable scores, four phases and valid fees. Shares normalize to 100%.
+Invalid or stale answers preserve the full draft and any user edits.
+
+Costs are transparent working estimates: editable hours × cost/hour for each
+workstream, a shared delivery reserve, and optional pass-through media/third-party
+spend. The app calculates fee revenue, costs and contribution before overhead/tax
+for the team and agencies. Pass-through spend is separate from agency fee revenue.
+No actual agency rates or margins are claimed. Copy exports the full proposal.
+
+The full-proposal client deadline is 28 seconds and the server deadline is 25
+seconds, below Vercel's 60-second limit. Small requests retain 19/17-second client/
+server deadlines. Full proposals allow up to 6,500 output tokens and a 16-second
+provider attempt. Groq is preferred (up to 18 seconds), with Gemini fallback.
+A 503 retries once after 250ms within the total budget. Unavailable/zero-quota
+models are temporarily skipped within a warm function instance.
 
 ## Vercel settings
 
@@ -60,6 +76,6 @@ JSON and timeout of a hung response body. No real keys are used.
 `tests/demo.spec.js` covers Nike, Chase, Toyota, Acme Widgets, rentahuman ai,
 the detailed $500,000 social brief, all chips, lead/add/remove/fee/greeting chat
 commands, 1/2/3 critique rounds, PepsiCo citations, manual share edits, External
-and ROI smoke tests, safe AI patches and stale replies. It runs in Chromium
+and ROI smoke tests, complete AI proposals, financial calculations, malformed proposals and stale replies. It runs in Chromium
 and WebKit at desktop and 390px phone width, checking JavaScript errors and
 page overflow. WebKit is Safari's engine; this is not a manual Safari-app test.

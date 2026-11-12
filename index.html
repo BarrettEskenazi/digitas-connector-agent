@@ -215,7 +215,7 @@ footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
         <div style="display:grid;gap:2px"><b id="chatTitle">Connector agent</b><span class="note" id="chatSub">Internal mode</span></div>
         <span class="mode" id="mode">Checking AI…</span>
       </div>
-      <div class="picks"><form class="coform" id="coForm"><input id="co" type="text" placeholder="Type any company, e.g. Nike" aria-label="Company name"><button class="btn small" type="submit">Break it down</button></form><span class="eyebrow" id="picksLabel">Examples</span><div class="plist" id="plist"></div></div>
+      <div class="picks"><form class="coform" id="coForm"><input id="co" type="text" placeholder="Company name, e.g. Nike" aria-label="Company name"><button class="btn small" type="submit">Break it down</button></form><span class="eyebrow" id="picksLabel">Examples</span><div class="plist" id="plist"></div></div>
       <div class="log" id="log" aria-live="polite"></div>
       <div class="composer">
         <div class="chips" id="chips"></div>
@@ -386,6 +386,7 @@ function score(r){ return Math.round((0.5*r.fit+0.3*r.relationship+0.2*(5-r.over
 function renderInternal(){
   const b=cur().board; const empty=t=>`<p class="empty">${t}</p>`;
   if(!b){ $("#board").innerHTML=`<section class="support">${empty("Describe an opportunity in the chat: the client, which sister agency is involved, what the client needs, and a rough fee. Or pick the example.")}</section>`; return; }
+  ensureProposal(b);
   const ranked=[...(b.ranking||[])].map(r=>({...r,s:score(r)})).sort((a,c)=>c.s-a.s);
   const rank=ranked.map((r,i)=>`<div class="rk ${i===0?"top":""}"><span class="n">${i+1}</span><div><b>${esc(r.agency)}</b><div class="sub">${esc(AGENCIES[r.agency]||"")}</div><div class="meter" aria-hidden="true"><i style="width:${r.s}%"></i></div></div><div class="why"><span class="role">${esc(r.role)}.</span> ${esc(r.why)}<div class="sub">Fit ${r.fit}/5 · Relationship ${r.relationship}/5 · Overlap ${r.overlap}/5</div></div><span class="score">${r.s}</span></div>`).join("");
   const ag=[...new Set((b.workstreams||[]).flatMap(w=>[w.responsible,w.accountable,w.consulted]).filter(Boolean))];
@@ -405,11 +406,13 @@ function renderInternal(){
   <section class="support"><div class="support-head"><span class="eyebrow">Opportunity</span><div class="client-line"><b>${esc(b.opportunity?.client)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":cur().source==="builtin"?"Instant draft":"Example"}</span></div><p class="note">${esc(b.opportunity?.source)} · Need: ${esc(b.opportunity?.need)}</p></div>
     ${b.lead?`<div class="decision"><b>Lead agency:</b> ${esc(b.lead.agency)}. ${esc(b.lead.why)}</div>`:""}
     ${(()=>{const ex=INT_EXAMPLES.find(x=>x.id===cur().pick);return ex&&ex.sources?`<div class="sources"><span class="eyebrow">Public sources</span>${ex.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("")}</div>`:"";})()}</section>
+  ${proposalHTML(b)}
   <section class="support"><div class="support-head"><span class="eyebrow">Step 1</span><h2>Which sister agencies to bring in</h2><span class="addon">Add-on: ranking model</span></div>
-    <p class="note">Publicis Groupe sister agencies only. Score out of 100 = 50% capability fit + 30% existing client relationship + 20% low overlap with Digitas. The demo ranks 10 agencies; the full build would cover the whole Publicis network.</p><div class="rank">${rank}</div></section>
+    <p class="note">Publicis Groupe sister agencies only. Score out of 100 = 50% capability fit + 30% existing client relationship + 20% low overlap with Digitas. Ranks 4–6 candidates from 10 sister agencies; the recommended delivery team below uses the complementary specialists required for this scope.</p><div class="rank">${rank}</div></section>
   <section class="support"><div class="support-head"><span class="eyebrow">Step 2</span><h2>Who does what</h2><span class="addon">Add-on: task delegation</span></div>
     <p class="note">R = does the work · A = approves and owns the result · C = consulted</p>
     <div class="table-wrap"><table class="raci"><thead><tr><th>Workstream</th>${ag.map(a=>`<th style="text-align:center">${esc(a)}</th>`).join("")}</tr></thead><tbody>${raci}</tbody></table></div></section>
+  ${deliveryHTML(b)}
   <section class="support"><div class="support-head"><span class="eyebrow">Step 3</span><h2>How the revenue is shared</h2><span class="addon">Add-on: revenue split calculator</span></div>
     <div class="feerow"><label for="fee" class="note">Total joint fee</label><input type="number" id="fee" min="0" step="10000" value="${fee}"><span class="note">Edit the fee or any share; totals update. Shares follow the workstream each agency does.</span></div>
     ${b.feeNote?`<p class="note" style="color:var(--warn)">${esc(b.feeNote)}</p>`:""}
@@ -417,12 +420,14 @@ function renderInternal(){
     <div class="two"><div class="table-wrap"><table style="min-width:420px"><thead><tr><th>Workstream</th><th>Done by</th><th class="num">Share</th><th class="num">Fee</th></tr></thead><tbody>${wsRows}<tr class="total"><td colspan="2">Total</td><td class="num">${Math.round(totalShare)}%</td><td class="num">${fmt(fee)}</td></tr></tbody></table></div>
     <div class="table-wrap"><table style="min-width:280px"><thead><tr><th>Agency</th><th class="num">Share</th><th class="num">Revenue</th></tr></thead><tbody>${agTable}</tbody></table></div></div>
     ${Math.round(totalShare)!==100?`<p class="note" style="color:var(--warn)">Shares add up to ${Math.round(totalShare)}%. Dollar amounts are scaled to the total fee.</p>`:""}</section>
+  ${costsHTML(b)}
   <section class="support"><div class="support-head"><span class="eyebrow">Step 4</span><h2>Reusable agreement template</h2><span class="addon">Add-on: contract template</span></div>
     <div class="contract">${contract}</div>
     <div class="two"><div class="side"><span class="eyebrow">Kickoff checklist</span><ul>${(b.kickoff||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div><div class="side"><span class="eyebrow">Risks to plan for</span><ul>${(b.risks||[]).map(x=>`<li>${esc(x)}</li>`).join("")}</ul></div></div>
-    <div class="copyrow"><button class="btn ghost small" id="copy" type="button">Copy template and split</button><span class="note" id="copyStatus" role="status"></span></div></section>`;
-  $("#fee").addEventListener("change",e=>{b.fee=Math.max(0,+e.target.value||0);syncContract(b);renderInternal();});
+    <div class="copyrow"><button class="btn ghost small" id="copy" type="button">Copy full proposal</button><span class="note" id="copyStatus" role="status"></span></div></section>`;
+  $("#fee").addEventListener("change",e=>{b.fee=Math.max(0,+e.target.value||0);b.feeLocked=true;syncContract(b);renderInternal();});
   document.querySelectorAll("input.pct").forEach(inp=>inp.addEventListener("change",e=>{setShare(b,+e.target.dataset.i,+e.target.value||0);syncContract(b);renderInternal();}));
+  bindCostInputs(b);
   $("#copy").addEventListener("click",copy);
 }
 
@@ -535,7 +540,8 @@ function summaryText(){
   const b=cur().board; if(!b) return "";
   if(mode==="internal"){
     const tot=(b.workstreams||[]).reduce((s,w)=>s+(+w.share||0),0)||1;
-    return [`Opportunity: ${b.opportunity?.client} (${b.opportunity?.source})`,`Need: ${b.opportunity?.need}`,`Lead agency: ${b.lead?.agency}`,"",
+    ensureProposal(b);const finance=financials(b);
+    return [`${b.proposal.title}\n${b.proposal.summary}`,`Company: ${b.profile.business}\nAudience: ${b.profile.audience}`,`Objectives: ${b.proposal.objectives.join("; ")}`,`Scope: ${b.proposal.scope.join("; ")}`,`Exclusions: ${b.proposal.exclusions.join("; ")}`,`Assumptions: ${b.profile.assumptions.join("; ")}`,"",`Delivery plan (${b.proposal.durationWeeks} weeks):`,...b.plan.map(p=>`${p.weeks}: ${p.phase} (${p.owner}). ${p.actions.join(" ")} Deliverable: ${p.deliverable}. KPI: ${p.kpi}`),"",`Agency fee: ${fmt(b.fee)}; labor: ${fmt(finance.labor)}; reserve: ${fmt(finance.reserve)}; contribution before overhead/tax: ${fmt(finance.contribution)}. Additional pass-through: ${fmt(b.finance.passThrough)}. Total investment: ${fmt(finance.investment)}.`,...finance.rows.map(w=>`${w.responsible} / ${w.name}: ${w.hours} hours × ${fmt(w.costRate)} = ${fmt(w.cost)} cost; ${fmt(w.revenue)} fee revenue. Deliverables: ${w.deliverables.join("; ")}`),"",`Opportunity: ${b.opportunity?.client} (${b.opportunity?.source})`,`Need: ${b.opportunity?.need}`,`Lead agency: ${b.lead?.agency}`,"",
       "Partner ranking:",...[...(b.ranking||[])].map(r=>({...r,s:score(r)})).sort((a,c)=>c.s-a.s).map((r,i)=>`${i+1}. ${r.agency} (${r.s}/100): ${r.role}`),"",
       "Task and revenue split:",...(b.workstreams||[]).map(w=>`- ${w.name}: R ${w.responsible}, A ${w.accountable}, C ${w.consulted}; ${Math.round(w.share/tot*100)}% = ${fmt(b.fee*w.share/tot)}`),"",
       "Joint engagement template:",...(b.contract||[]).map((c,i)=>`${i+1}. ${c.title}: ${c.text}`)].join("\n");
@@ -558,7 +564,7 @@ const EXT_RULES=`Use ONLY the facts given about the prospect; anything assumed g
 
 function factsBlock(){ const p=mode==="external"&&cur().pick&&PROSPECTS.find(x=>x.id===cur().pick); return p?`Prospect: ${p.name}\nPublic facts:\n- ${p.facts.join("\n- ")}`:"Facts: only what the user says in the conversation."; }
 function chatPrompt(){
-  if(mode==="internal") return tailoringPrompt();
+  if(mode==="internal") return proposalPrompt();
   const isInt=mode==="internal";
   return `You are the Digitas Connector Agent, a prototype add-on to Digitas's internal AI platform. ${isInt?"INTERNAL MODE: help Digitas team with Publicis sister agencies on an opportunity: rank partners, split tasks, split revenue, and draft a joint engagement template.":"EXTERNAL MODE: build an implementable pitch outline and trial ladder for a prospective client."}
 ${CONTEXT}
@@ -590,7 +596,101 @@ Output to review: ${JSON.stringify(cur().board)}
 Return only JSON: {"critique":["3-5 specific problems, one sentence each"],"changes":"one sentence","board":${isInt?INT_SCHEMA:EXT_SCHEMA}}`;
 }
 
-// Local controls are the source of truth. AI may only tailor descriptive text.
+// Local edits and validated full AI proposals use the same board.
+/* Full proposals share the same board, edits and six-section agreement. */
+function ensureProposal(b){
+  if(!b.proposal){
+    const need=b.opportunity.need, client=b.opportunity.client;
+    b.profile={business:`Working brief for ${client}; validate the business model and current priorities with the client.`,audience:'Existing customers and high-intent prospects; confirm priority segments during discovery.',assumptions:['The opportunity and recommended agency relationships are hypothetical.','No access to internal results, current contracts or proprietary customer data.','Scope, rates and targets below are planning estimates requiring approval.']};
+    b.proposal={title:`${client}: connected growth program`,summary:`Help ${client} ${need.charAt(0).toLowerCase()+need.slice(1)}. ${b.lead.agency} coordinates the account, with Digitas owning its customer experience work and specialist Publicis agencies delivering the complementary capabilities. Start with discovery, prove the approach in a controlled pilot, then scale only after a joint performance review.`,objectives:[need,'Connect agency work through one approved brief, shared measurement and clear handoffs.','Validate commercial impact in a pilot before committing to a wider rollout.'],scope:b.workstreams.map(w=>w.name),exclusions:['Paid media spend, external talent, licensing, taxes and third-party production unless separately approved.','A full platform rebuild or global rollout outside the pilot scope.'],durationWeeks:12};
+    b.plan=[
+      {phase:'Discover and align',weeks:'Weeks 1–2',owner:b.lead.agency.replace(/ \(assumed\)$/,''),actions:[`Audit ${client}'s customer journey and existing channel performance.`,`Agree the scope and agency handoffs for ${need.charAt(0).toLowerCase()+need.slice(1)}.`],deliverable:'Approved brief, baseline dashboard, audience priorities and signed RACI.',kpi:'Baseline and one primary business KPI agreed with the client.'},
+      {phase:'Design and build',weeks:'Weeks 3–5',owner:'Digitas',actions:['Develop the journey, messaging, creative test matrix and measurement design.','Build and QA the agreed assets, data connections and activation setup.'],deliverable:'Pilot-ready assets, journey flows, tracking plan and approval checklist.',kpi:'All pilot assets approved and tracking tested before launch.'},
+      {phase:'Activate and optimize',weeks:'Weeks 6–10',owner:b.lead.agency.replace(/ \(assumed\)$/,''),actions:['Launch the pilot with a defined test audience and comparison group where feasible.','Review results weekly; adjust creative, audience and channel allocation within the agreed scope.'],deliverable:'Live pilot, weekly reporting and optimization log.',kpi:'Measure conversion, cost per outcome and repeat engagement against the agreed baseline; targets set after discovery.'},
+      {phase:'Evaluate and scale',weeks:'Weeks 11–12',owner:'Digitas',actions:['Compare pilot performance and commercial impact against the agreed baseline.','Recommend what to scale, stop or change; agree the next phase and budget.'],deliverable:'Joint results readout, business case and prioritized 90-day roadmap.',kpi:'Client approves the scale/stop decision using the agreed success criteria.'}
+    ];
+  }
+  b.finance=b.finance||{reservePct:10,passThrough:0};
+  b.workstreams.forEach(w=>{
+    if(!Array.isArray(w.deliverables)||!w.deliverables.length)w.deliverables=[`${w.name}: approved strategy and execution assets.`,`${w.name}: QA, reporting and handover to the shared team.`];
+    if(!Number.isFinite(w.costRate))w.costRate=100;
+    if(!Number.isFinite(w.hours))w.hours=Math.round(b.fee*w.share/100*0.65/w.costRate);
+  });
+  const team=new Set(b.workstreams.map(w=>w.responsible));
+  b.plan.forEach(p=>{if(!team.has(p.owner))p.owner=b.lead.agency.replace(/ \(assumed\)$/,'');});
+}
+function financials(b){
+  const total=b.workstreams.reduce((s,w)=>s+w.share,0)||1;
+  const rows=b.workstreams.map(w=>({...w,revenue:Math.floor(b.fee*w.share/total),cost:Math.round(w.hours*w.costRate)}));
+  let remaining=Math.round(b.fee)-rows.reduce((s,w)=>s+w.revenue,0);
+  const fractions=b.workstreams.map((w,i)=>({i,f:b.fee*w.share/total-rows[i].revenue})).sort((a,c)=>c.f-a.f);
+  for(let i=0;i<remaining;i++)rows[fractions[i%fractions.length].i].revenue++;
+  const labor=rows.reduce((s,w)=>s+w.cost,0),reserve=Math.round(b.fee*b.finance.reservePct/100);
+  return {rows,labor,reserve,cost:labor+reserve,contribution:b.fee-labor-reserve,investment:b.fee+b.finance.passThrough};
+}
+function proposalHTML(b){
+  const p=b.proposal,profile=b.profile,list=xs=>`<ul>${xs.map(x=>`<li>${esc(x)}</li>`).join('')}</ul>`;
+  const team=[...new Set(b.workstreams.map(w=>w.responsible))];
+  return `<section class="support" id="full-proposal"><div class="support-head"><span class="eyebrow">The proposal</span><h2>${esc(p.title)}</h2></div><p>${esc(p.summary)}</p>
+    <div class="two"><div class="side"><h3>Company and audience</h3><p>${esc(profile.business)}</p><p class="note">Audience: ${esc(profile.audience)}</p></div><div class="side"><h3>What success looks like</h3>${list(p.objectives)}</div></div>
+    <div class="decision"><b>Recommended team:</b> ${team.map(esc).join(' + ')}. <b>Duration:</b> ${esc(p.durationWeeks)} weeks. <b>Agency fee:</b> ${fmt(b.fee)}.</div>
+    <div class="two"><div class="side"><h3>Included in the proposal</h3>${list(p.scope)}</div><div class="side"><h3>Outside the base fee</h3>${list(p.exclusions)}</div></div>
+    <div class="side"><h3>Working assumptions</h3>${list(profile.assumptions)}</div></section>`;
+}
+function deliveryHTML(b){
+  return `<section class="support" id="delivery-plan"><div class="support-head"><span class="eyebrow">The delivery plan</span><h2>What happens, when, and who owns it</h2></div>
+    ${b.plan.map(p=>`<div class="side"><span class="eyebrow">${esc(p.weeks)} · ${esc(p.owner)}</span><h3>${esc(p.phase)}</h3><ul>${p.actions.map(a=>`<li>${esc(a)}</li>`).join('')}</ul><p><b>Deliverable:</b> ${esc(p.deliverable)}</p><p class="note"><b>Success measure:</b> ${esc(p.kpi)}</p></div>`).join('')}
+    <div class="support-head"><h3>Deliverables by workstream</h3></div>${b.workstreams.map(w=>`<div class="side"><h3>${esc(w.name)} · ${esc(w.responsible)}</h3><ul>${w.deliverables.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></div>`).join('')}</section>`;
+}
+function costsHTML(b){
+  const f=financials(b),agency={};
+  f.rows.forEach(w=>{const a=agency[w.responsible]||(agency[w.responsible]={revenue:0,cost:0});a.revenue+=w.revenue;a.cost+=w.cost;});
+  return `<section class="support" id="cost-breakdown"><div class="support-head"><span class="eyebrow">Costs and economics</span><h2>What it costs to deliver and what each agency earns</h2></div>
+    <p class="note">Illustrative estimates, not quoted Publicis rates or actual margins. Delivery cost = hours × internal cost/hour. Revenue is allocated from the joint agency fee. Contribution is before overhead and tax; it is not guaranteed profit.</p>
+    <div class="two"><div class="side"><h3>Agency fee revenue: ${fmt(b.fee)}</h3><p>Estimated delivery labor: ${fmt(f.labor)}</p><p>Shared delivery reserve: ${fmt(f.reserve)}</p><p><b>Estimated contribution: ${fmt(f.contribution)} (${b.fee?Math.round(f.contribution/b.fee*100):0}%)</b></p></div><div class="side"><label for="reserve">Delivery reserve (% of fee)</label><input id="reserve" type="number" min="0" max="100" value="${b.finance.reservePct}"><label for="passThrough">Additional approved media / third-party spend ($)</label><input id="passThrough" type="number" min="0" value="${b.finance.passThrough}"><p><b>Total client investment: ${fmt(f.investment)}</b></p><p class="note">Additional spend is passed through at cost and excluded from agency fee shares. Default $0 means unpriced, not included.</p></div></div>
+    ${f.contribution<0?'<p class="note">Estimated delivery costs exceed the fee. Reduce the scope/hours or increase the fee before approving.</p>':''}
+    <div class="table-wrap"><table style="min-width:650px"><thead><tr><th>Workstream</th><th>Hours</th><th>Cost / hour</th><th>Delivery cost</th><th>Fee revenue</th></tr></thead><tbody>${f.rows.map((w,i)=>`<tr><td>${esc(w.name)}<div class="note">${esc(w.responsible)}</div></td><td><input class="cost-hours" data-i="${i}" aria-label="Hours for ${esc(w.name)}" type="number" min="0" value="${w.hours}"></td><td><input class="cost-rate" data-i="${i}" aria-label="Cost per hour for ${esc(w.name)}" type="number" min="0" value="${w.costRate}"></td><td>${fmt(w.cost)}</td><td>${fmt(w.revenue)}</td></tr>`).join('')}<tr class="total"><td colspan="3">Total</td><td>${fmt(f.labor)}</td><td>${fmt(b.fee)}</td></tr></tbody></table></div>
+    <div class="table-wrap"><table style="min-width:600px"><thead><tr><th>Agency</th><th>Fee revenue</th><th>Delivery cost</th><th>Reserve allocation</th><th>Contribution</th></tr></thead><tbody>${Object.entries(agency).map(([name,a])=>{const reserve=b.fee?f.reserve*a.revenue/b.fee:0;return `<tr><td>${esc(name)}</td><td>${fmt(a.revenue)}</td><td>${fmt(a.cost)}</td><td>${fmt(reserve)}</td><td>${fmt(a.revenue-a.cost-reserve)}</td></tr>`;}).join('')}</tbody></table></div></section>`;
+}
+function bindCostInputs(b){
+  for(const [selector,key] of [['.cost-hours','hours'],['.cost-rate','costRate']])document.querySelectorAll(selector).forEach(el=>el.addEventListener('change',e=>{b.workstreams[+e.target.dataset.i][key]=Math.max(0,Math.min(1e7,Math.round(+e.target.value||0)));syncContract(b);renderInternal();}));
+  for(const [id,key,max] of [['reserve','reservePct',100],['passThrough','passThrough',1e12]])$('#'+id).addEventListener('change',e=>{b.finance[key]=Math.max(0,Math.min(max,+e.target.value||0));syncContract(b);renderInternal();});
+}
+function proposalPrompt(instruction='Build the complete proposal for this company'){
+  const b=cur().board;
+  return `Create a complete, commercially useful Digitas/Publicis proposal for ${JSON.stringify(b.opportunity.client)}. ${instruction}. Return JSON only {"board":{...}} using this schema:
+{"opportunity":{"need":"specific marketing opportunity"},"profile":{"business":"what this company does, or state unknown","audience":"specific priority audience","assumptions":["3 items"]},"proposal":{"title":"specific program title","summary":"80-120 word persuasive proposal explaining problem, solution and connected agency value","objectives":["3 measurable outcomes; targets proposed, not actual"],"scope":["3-5 concrete inclusions"],"exclusions":["2 exclusions"],"durationWeeks":12},"ranking":[{"agency":"","fit":5,"relationship":1,"overlap":2,"role":"","why":"specific complementary contribution"}],"lead":{"agency":"","why":""},"workstreams":[{"name":"","responsible":"","accountable":"","consulted":"","share":20,"deliverables":["2 concrete deliverables"]}],"fee":500000,"plan":[{"phase":"","weeks":"Weeks 1–2","owner":"","actions":["2 specific actions"],"deliverable":"","kpi":"baseline from client; proposed success criterion"}],"kickoff":["4 actions"],"risks":["3 specific risks"]}.
+Rules: 4-6 ranked sister agencies ONLY from ${Object.keys(AGENCIES).join('; ')}. Digitas may lead and MUST own a workstream but is not a sister-agency ranking entry. Pick an efficient complementary team; do not hire all ranked options or duplicate creative/media scope. Each of 4-6 workstreams has exactly one R, A and C agency name, using only that list or Digitas. Scores integers 1-5; relationship 1-2 unless user supplies a relationship. Shares total 100. Select a scope-based illustrative agency fee for a time-limited pilot, not annual/global revenue. ${b.feeLocked?'KEEP the user-supplied fee exactly '+b.fee+'.':'You may replace the placeholder fee with a defensible pilot estimate.'} Four sequenced phases covering the proposed duration with owners, tangible deliverables and KPIs. No fabricated current events, clients, agency relationships, company metrics, access to data, or promised returns. Company name alone is enough; infer a plausible opportunity from general public knowledge. For an unfamiliar/ambiguous name, say the business model is unknown and make the assumption explicit rather than inventing facts. All recommendations and numbers are hypothetical. The summary should focus on the company problem and approach; agency assignments are shown separately. No need for contract or cost totals; the app calculates those from scope, fee and shares. Be specific and concise, under 2000 words.
+Current brief: ${JSON.stringify({need:b.opportunity.need,fee:b.fee,team:b.workstreams.map(w=>({name:w.name,responsible:w.responsible,share:w.share})),lead:b.lead,brief:b.brief||''})}`;
+}
+function validateProposal(current,result){
+  const data=result&&result.board;
+  if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('Missing complete proposal');
+  const text=(v,max=1000)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw new Error('Invalid proposal text');return v.trim();};
+  const texts=(v,min,max=6)=>{if(!Array.isArray(v)||v.length<min||v.length>max)throw new Error('Incomplete proposal list');return v.map(x=>text(x,500));};
+  const rows=(v,min,max)=>{if(!Array.isArray(v)||v.length<min||v.length>max)throw new Error('Incomplete proposal rows');return v;};
+  const agency=v=>{if(!validAgency(v))throw new Error('Invalid agency');return v;};
+  const candidate=structuredClone(current);
+  candidate.opportunity.need=text(data.opportunity?.need,500);
+  candidate.profile={business:text(data.profile?.business,800),audience:text(data.profile?.audience,500),assumptions:texts(data.profile?.assumptions,2)};
+  const p=data.proposal;
+  if(!Number.isInteger(p?.durationWeeks)||p.durationWeeks<2||p.durationWeeks>52)throw new Error('Invalid duration');
+  candidate.proposal={title:text(p.title,180),summary:text(p.summary,1600),objectives:texts(p.objectives,2),scope:texts(p.scope,3),exclusions:texts(p.exclusions,1),durationWeeks:p.durationWeeks};
+  candidate.ranking=rows(data.ranking,4,6).map(r=>{agency(r.agency);if(r.agency==='Digitas')throw new Error('Ranking must be sisters');const out={agency:r.agency,role:text(r.role,180),why:text(r.why,500)};for(const k of ['fit','relationship','overlap']){if(!Number.isInteger(r[k])||r[k]<1||r[k]>5)throw new Error('Invalid score');out[k]=r[k];}return out;});
+  if(new Set(candidate.ranking.map(r=>r.agency)).size!==candidate.ranking.length)throw new Error('Duplicate ranking');
+  candidate.lead={agency:agency(data.lead?.agency),why:text(data.lead?.why,500)};
+  candidate.workstreams=rows(data.workstreams,4,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,deliverables:texts(w.deliverables,1,4)};});
+  if(!candidate.workstreams.some(w=>w.responsible==='Digitas')||!candidate.workstreams.some(w=>w.responsible===candidate.lead.agency))throw new Error('Missing delivery owner');
+  if(candidate.workstreams.reduce((s,w)=>s+w.share,0)<=0)throw new Error('Empty allocation');
+  normalizeShares(candidate.workstreams);
+  if(!current.feeLocked){if(!Number.isFinite(data.fee)||data.fee<1000||data.fee>1e9)throw new Error('Invalid fee');candidate.fee=Math.round(data.fee);candidate.feeNote='Illustrative scope-based agency fee for this proposal, not an actual company budget or agency quote. Edit it to match the brief.';}
+  candidate.plan=rows(data.plan,4,4).map(p=>({phase:text(p.phase,180),weeks:text(p.weeks,120),owner:agency(p.owner),actions:texts(p.actions,2,4),deliverable:text(p.deliverable,500),kpi:text(p.kpi,500)}));
+  candidate.kickoff=texts(data.kickoff,3,6);candidate.risks=texts(data.risks,3,6);
+  candidate.opportunity.source='AI-generated hypothetical proposal, based on general public knowledge and your brief. Company facts, agency relationships, costs and targets require verification.';
+  ensureProposal(candidate);
+  return candidate;
+}
+
 let revision=0;
 const validAgency=a=>a==='Digitas'||Object.prototype.hasOwnProperty.call(AGENCIES,a);
 function normalizeShares(rows,total=100){
@@ -604,13 +704,15 @@ function setShare(b,index,value){
 }
 function syncContract(b){
   revision++;
+  ensureProposal(b);
+  b.proposal.scope=b.workstreams.map(w=>`${w.name}: ${w.deliverables[0]}`);
   const lead=b.lead.agency.replace(/ \(assumed\)$/,'');
   const team=[...new Set([lead,...b.workstreams.map(w=>w.responsible)])];
   const template=builtInPlan(b.opportunity.client,'').contract;
   b.contract=template.map((c,i)=>b.contract?.[i]?.text?{title:c.title,text:b.contract[i].text}:c);
-  b.contract[0].text=`Agencies: ${team.join(', ')}. Client: ${b.opportunity.client}. Objective: ${b.opportunity.need}. Deliverables: per the task split. Timeline: [start] to [end].`;
+  b.contract[0].text=`Agencies: ${team.join(', ')}. Client: ${b.opportunity.client}. Objective: ${b.opportunity.need}. Deliverables: ${b.workstreams.flatMap(w=>w.deliverables).join("; ")}. Planned duration: ${b.proposal.durationWeeks} weeks; dates confirmed at kickoff.`;
   b.contract[1].text=`${b.lead.agency} is lead agency. ${b.workstreams.map(w=>`${w.name}: ${w.responsible} responsible; ${w.accountable} accountable`).join('. ')}. Changes require written agreement.`;
-  b.contract[2].text=`${b.lead.agency} manages the ${b.opportunity.client} relationship. Joint fee: ${fmt(b.fee)}. ${b.workstreams.map(w=>`${w.responsible}: ${w.share}% for ${w.name}`).join('; ')}. Each agency joins planning for its workstream and receives case-study credit. Allocation is illustrative and requires approval.`;
+  b.contract[2].text=`${b.lead.agency} manages the ${b.opportunity.client} relationship. Joint fee: ${fmt(b.fee)}. ${b.workstreams.map(w=>`${w.responsible}: ${w.share}% for ${w.name}`).join('; ')}. Each agency joins planning for its workstream and receives case-study credit. Allocation is illustrative and requires approval. Estimated delivery cost including reserve: ${fmt(financials(b).cost)}. Additional approved pass-through spend: ${fmt(b.finance.passThrough)}; not shared agency fee revenue.`;
   b.contract[5].text=`Signed by account and finance leads before work starts. Signatures: ${team.map(a=>`____ (${a})`).join(' ')}.`;
 }
 function addAgency(b,agency){
@@ -625,13 +727,13 @@ function addAgency(b,agency){
 }
 function localAction(text){
   revision++; addMsg('user',text); $('#input').value='';
-  let b=cur().board, reply='';
+  let b=cur().board, reply='', aiInstruction=null;
   const named=companyFrom(text);
   const agency=['Digitas',...Object.keys(AGENCIES)].find(a=>text.toLowerCase().includes(a.toLowerCase()));
   if(/^(hi|hello|hey|thanks|thank you)[!.\s]*$/i.test(text)) reply='Hi! Enter a company or ask me to change the lead, agencies, fee or shares.';
-  else if(named || (!agency && !/friction|fee|budget|lead|share|remove|add|build the full/i.test(text) && text.split(/\s+/).length<=5) || !b){
+  else if(named || (!agency && !/friction|fee|budget|lead|share|remove|add|build the full|make|change|focus|target|shorten|expand|campaign|proposal|plan|cost|weeks|more|less|instead/i.test(text) && text.split(/\s+/).length<=5) || !b){
     const name=named||(/build the full/i.test(text)?'New client':text.slice(0,100));
-    cur().pick='own'; cur().source='builtin'; b=cur().board=builtInPlan(name,text); syncContract(b);
+    cur().pick='own'; cur().source='builtin'; b=cur().board=builtInPlan(name,text); b.brief=text; b.feeLocked=!!feeFrom(text); syncContract(b); aiInstruction='Build the complete company proposal';
     reply=`Built a complete hypothetical draft for ${name}, based on general public knowledge. Confirm the scope and assumptions.`;
   } else if(/friction|risk/i.test(text)) reply=b.risks.join('\n')+'\nAgree on scope, client ownership, approval rights and revenue before kickoff.';
   else if(/\bremove\b/i.test(text)&&agency){
@@ -652,10 +754,10 @@ function localAction(text){
     addAgency(b,agency); const rows=b.workstreams.filter(w=>w.responsible===agency),others=b.workstreams.filter(w=>w.responsible!==agency);
     const total=Math.min(90,rows.reduce((s,w)=>s+w.share,0)+10);normalizeShares(rows,total);normalizeShares(others,100-total);syncContract(b);reply=`Increased ${agency}'s share; the total remains 100%.`;
   } else if(/\badd\b/i.test(text)&&agency){addAgency(b,agency);syncContract(b);reply=`${agency} is included in the task split and agreement.`;}
-  else if(/fee|budget/i.test(text)&&feeFrom(text)){b.fee=feeFrom(text);b.feeNote='Fee supplied by you.';syncContract(b);reply=`Set the joint fee to ${fmt(b.fee)} and updated the agreement.`;}
-  else reply='The draft is ready. Try “Make Starcom the lead”, “Add MSL”, “Set the fee to $2M”, or describe a company called [name] that needs [scope].';
+  else if(/fee|budget/i.test(text)&&feeFrom(text)){b.fee=feeFrom(text);b.feeLocked=true;b.feeNote='Agency fee supplied by you.';syncContract(b);reply=`Set the joint fee to ${fmt(b.fee)} and updated the agreement.`;}
+  else { aiInstruction=text; b.brief=(b.brief||'')+'\nRequested change: '+text; reply=live?'I’m updating the complete proposal for your request.':'Live AI is unavailable. Your complete draft is preserved; you can edit fees, shares and delivery costs directly.'; }
   addMsg('ai',reply); renderPicks();render();chips();
-  if(named) tailor();
+  if(aiInstruction) tailor(aiInstruction);
 }
 function localCritique(){
   const b=cur().board;if(!b)return 'Enter a company first to build a complete draft.';
@@ -670,28 +772,20 @@ function localCritique(){
   const overlap=b.ranking.filter(r=>r.overlap>=4).map(r=>r.agency);
   return `${fixes.length?fixes.join('; '):'Checked: one lead, one R and A per task, Digitas scope, 100% shares and all six contract sections'}. Sections 2 and 3 match the split. ${overlap.length?'Confirm scope boundaries for '+overlap.join(', ')+'.':'Confirm scope boundaries with the team.'} All assumptions still need human review.`;
 }
-function tailoringPrompt(){
-  const b=cur().board;
-  return `Return JSON only with optional changed wording: {"need":"one sentence","reasons":[{"agency":"existing agency","why":"one short sentence"}],"workstreams":[{"index":0,"name":"short title"}]}. Under 300 words. Hypothetical student plan based on general public knowledge, not verified company facts. Do not invent relationships, budgets, statistics or company initiatives. Preserve scope and responsibilities. No full board. Draft: ${JSON.stringify({client:b.opportunity.client,need:b.opportunity.need,ranking:b.ranking.map(r=>({agency:r.agency,role:r.role})),workstreams:b.workstreams.map((w,index)=>({index,name:w.name,responsible:w.responsible}))})}`;
-}
-function applyTailoring(b,patch){
-  let changed=false;
-  const safe=(v,max)=>typeof v==='string'&&v.trim()&&v.length<=max;
-  if(safe(patch.need,240)){b.opportunity.need=patch.need;changed=true;}
-  if(Array.isArray(patch.reasons))patch.reasons.slice(0,6).forEach(p=>{const r=b.ranking.find(r=>r.agency===p?.agency);if(r&&safe(p.why,240)){r.why=p.why;changed=true;}});
-  if(Array.isArray(patch.workstreams))patch.workstreams.slice(0,10).forEach(p=>{if(p&&Number.isInteger(p.index)&&b.workstreams[p.index]&&safe(p.name,100)){b.workstreams[p.index].name=p.name;changed=true;}});
-  if(changed)syncContract(b);return changed;
-}
-async function tailor(){
-  if(!live)return;
+async function tailor(instruction){
   const st=cur(), b=st.board, version=revision;
-  addMsg('ai','Optional live tailoring is running; you can keep editing.');
+  await liveReady;
+  if(!live||mode!=="internal"||st.board!==b||revision!==version)return;
+  addMsg('ai','Building the full proposal: company strategy, agency team, deliverables, costs and delivery plan…');
+  const t=addMsg('ai','Preparing your complete proposal…','typing',false);
   try{
-    const patch=await callAI(tailoringPrompt());
+    const result=await callAI(proposalPrompt(instruction),true);
     if(mode!=='internal'||st.board!==b||revision!==version)return;
-    if(!applyTailoring(b,patch))throw new Error('No usable tailoring');
-    st.source='ai';render();addMsg('ai','Live wording applied. The plan remains hypothetical; please confirm the assumptions.');
-  }catch(_){if(mode==='internal'&&st.board===b&&revision===version)addMsg('ai','Live AI is busy. Your complete instant draft is ready to use and edit.');}
+    const proposal=validateProposal(b,result);syncContract(proposal);
+    st.board=proposal;st.source='ai';render();chips();
+    addMsg('ai',`${proposal.proposal.title} is ready: ${proposal.proposal.durationWeeks}-week plan, ${fmt(proposal.fee)} agency fee, ${[...new Set(proposal.workstreams.map(w=>w.responsible))].join(' + ')}. The proposal, delivery costs, agency revenue split, timeline and agreement are below. All estimates and assumptions are editable.`);
+  }catch(_){if(mode==='internal'&&st.board===b&&revision===version)addMsg('ai','Live AI is busy. Your full instant proposal, delivery plan and editable cost/revenue breakdown are ready below.');}
+  finally{t.remove();}
 }
 
 /* ---------- AI calls ---------- */
@@ -821,7 +915,7 @@ function builtInPlan(name,text){
   return {
     opportunity:{client:name,source:`Built-in draft${known?` for a ${S.label} brand`:""}. Hypothetical opportunity, based on general public knowledge; check every detail.`,need:(()=>{const m=text.match(/\b(?:needs?|wants?|looking for)\s+(.+?)(?:\s+with\s+(?:a\s+)?\$?[\d,.]+\s*\w*\s*budget.*)?$/i);const n=m?m[1]:"";return n&&n.length<200?n.charAt(0).toUpperCase()+n.slice(1):S.need;})()},
     ranking, lead:{agency:S.lead,why:key==="social"?"Social strategy, content and creators are the core of the work and a Digitas strength, so Digitas leads.":S.lead==="Digitas"?"The core need is customer experience, CRM and personalization, which is Digitas's strength.":`Media is the biggest piece of work, so ${S.lead} leads. Digitas owns social, content and personalization and connects them to media and data.`},
-    workstreams, fee:feeFrom(text)||S.fee, feeNote:feeFrom(text)?"Fee taken from your message. Edit it if needed.":"Illustrative fee only, not a reported number. Edit it to match the real opportunity.",
+    workstreams, fee:feeFrom(text)||(key?(key==="social"?125000:Math.round(S.fee/10)):150000), feeNote:feeFrom(text)?"Fee taken from your message. Edit it if needed.":"Illustrative fee only, not a reported number. Edit it to match the real opportunity.",
     contract:[
      {title:"Project scope and objectives",text:`Agencies: ${team.join(", ")}. Client: ${name}. Objective: ${(S.need).charAt(0).toLowerCase()+S.need.slice(1)}. Deliverables: per the task split. Timeline: [start] to [end].`},
      {title:"Lead agency and responsibilities",text:`${S.lead} is lead agency. Each workstream's responsible and accountable agency follows the task split. Work outside it needs a written change request.`},
@@ -833,21 +927,21 @@ function builtInPlan(name,text){
     risks:["This is a draft from general knowledge; the real need may differ.","Another Publicis agency may already own part of this scope.","Revenue shares need sign-off from each agency's finance lead."]};
 }
 $("#coForm").addEventListener("submit",e=>{e.preventDefault();const n=$("#co").value.trim();if(!n) return;
-  pick("own"); const st=cur(); st.board=builtInPlan(n,n); st.source="builtin"; syncContract(st.board);
-  addMsg("user",`Company: ${n}`); addMsg("ai",`Here's an instant hypothetical draft for ${n}. Edit the fee or shares, or use the chat controls.`); render(); chips(); tailor();
+  pick("own"); const st=cur(); st.board=builtInPlan(companyFrom(n)||n,n); st.board.brief=n; st.board.feeLocked=!!feeFrom(n); st.source="builtin"; syncContract(st.board);
+  addMsg("user",`Company: ${n}`); addMsg("ai",`Here's an instant hypothetical draft for ${n}. Your proposal, agency team, phased delivery plan and estimated costs/revenue are below.`); render(); chips(); tailor();
 });
 
 pick("pepsico");
-async function callAI(prompt){
-  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),19000);
+async function callAI(prompt,fullProposal=false){
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),fullProposal?28000:19000);
   try {
-    const r=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt}),signal:controller.signal});
+    const r=await fetch("/api/agent",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt,fullProposal}),signal:controller.signal});
     const j=await r.json(); if(!r.ok||!j||typeof j!=="object"||Array.isArray(j)) throw {code:j?.code||"invalid_json"}; return j;
   } finally { clearTimeout(timer); }
 }
 
-(async()=>{
-  try{ const r=await fetch("/api/agent"); const j=await r.json(); live=!!(r.ok&&j&&j.ok); }catch(_){ live=false; }
+const liveReady=(async()=>{
+  try{ const r=await fetch("/api/agent",{signal:AbortSignal.timeout(5000)}); const j=await r.json(); live=!!(r.ok&&j&&j.ok); }catch(_){ live=false; }
   $("#mode").textContent=live?"Live AI configured":"Instant drafts"; $("#mode").classList.toggle("live",live);
   if(!live) $("#aiNote").textContent="Live AI isn't connected right now. The examples still show the full output.";
 })();
