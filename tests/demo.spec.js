@@ -24,6 +24,23 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
     if(text==='Remove MSL')assert(await page.evaluate(()=>cur().board.workstreams.every(w=>![w.responsible,w.accountable,w.consulted].includes('MSL'))));
     if(text==='Make Starcom the lead')assert(await page.evaluate(()=>cur().board.workstreams.every(w=>w.accountable==='Starcom')));
    }
+   // A casual brief must separate the company, all-in budget and requested service.
+   for(const brief of ['Starbucks, 500k, advertising','Starbucks 500k advertising','advertising for Starbucks with $500k','advertising, 500k, Starbucks']){
+    await page.locator('#co').fill(brief);await page.locator('#coForm button').click();await check();
+    assert.equal(await page.evaluate(()=>cur().board.opportunity.client),'Starbucks');
+    assert.equal(await page.evaluate(()=>projectBudget(cur().board).total),500000);
+    assert.match(await page.evaluate(()=>cur().board.proposal.title),/advertising/i);
+    assert(await page.evaluate(()=>cur().board.workstreams.some(w=>w.responsible==='Saatchi & Saatchi')));
+   }
+   await send('Starbucks, 500k, advertising');
+   assert.equal(await page.evaluate(()=>cur().board.opportunity.client),'Starbucks');
+   assert.equal(await page.evaluate(()=>projectBudget(cur().board).total),500000);
+   await send('750k advertising');
+   assert.equal(await page.evaluate(()=>cur().board.opportunity.client),'Starbucks');
+   assert.equal(await page.evaluate(()=>projectBudget(cur().board).total),750000);
+   const beforeQuestion=await page.evaluate(()=>JSON.stringify(cur().board));
+   await send('why did you choose Starcom?');
+   assert.equal(await page.evaluate(()=>JSON.stringify(cur().board)),beforeQuestion);
    await send('Ok next is a company called rentahuman ai that needs social media marketing for their ai labor marketplace with 500,000 budget');
    assert.equal(await page.evaluate(()=>projectBudget(cur().board).total),500000);assert.equal(await page.evaluate(()=>cur().board.lead.agency),'Digitas');assert.match(await page.evaluate(()=>cur().board.workstreams[0].name),/Social/);
    for(const text of ['Make Digitas the lead','Give Digitas a bigger share','Add Publicis Sapient','What could cause friction?']){await page.getByRole('button',{name:text,exact:true}).click();await check();}
@@ -74,6 +91,8 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
     const next=validateProposal(cur().board,{board:input});return {owner:next.workstreams.find(w=>w.name==='Creative production').responsible,phaseOwner:next.plan[1].owner,kpi:next.plan[1].kpi,assumptions:next.profile.assumptions};
    });assert.equal(guarded.owner,'Digitas');assert.equal(guarded.phaseOwner,'Digitas');assert(!guarded.kpi.includes('70'));assert(!guarded.assumptions.some(a=>a.includes('3M')));
 
+   const repaired=await page.evaluate(()=>{const input=structuredClone(cur().board);input.workstreams.forEach(w=>{if(w.responsible==='Digitas')w.responsible='Saatchi & Saatchi';});input.proposal.objectives=['Increase visits 10% (baseline 500k visits)','Test creative'];const next=validateProposal(cur().board,{board:input});return {team:next.workstreams.map(w=>w.responsible),shares:next.workstreams.reduce((sum,w)=>sum+w.share,0),objectives:next.proposal.objectives};});
+   assert(repaired.team.includes('Digitas'));assert.equal(repaired.shares,100);assert(!repaired.objectives.join(' ').includes('500k'));
    await page.locator('#passThrough').fill('50000');await page.locator('#passThrough').press('Tab');
    assert.equal(await page.evaluate(()=>financials(cur().board).investment),325000);
    await page.locator('.cost-hours').first().fill('100');await page.locator('.cost-hours').first().press('Tab');

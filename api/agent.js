@@ -44,14 +44,16 @@ async function tryProvider(provider, key, deadline, tried) {
   for (const model of candidates) {
     const id = `${provider}:${model}`;
     if ((blocked.get(id)||0)>Date.now()) continue;
+    let strictSchema=groq&&tried.fullProposal&&model.startsWith('openai/gpt-oss-');
     for (let attempt=0; attempt<2 && Date.now()<deadline; attempt++) {
       try {
         const r = await request(groq ? `${GROQ}/chat/completions` : `${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
           method:'POST', headers:groq ? {'Content-Type':'application/json',Authorization:`Bearer ${key}`} : {'Content-Type':'application/json','x-goog-api-key':key},
-          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:tried.fullProposal&&model.startsWith('openai/gpt-oss-')?PROPOSAL_FORMAT:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?(model.startsWith('openai/gpt-oss-')?3500:4500):1200,...(model.startsWith('openai/gpt-oss-')?{reasoning_effort:'low'}:{})} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?4500:1200}})
+          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:strictSchema?PROPOSAL_FORMAT:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?(model.startsWith('openai/gpt-oss-')?3500:4500):1200,...(model.startsWith('openai/gpt-oss-')?{reasoning_effort:'low'}:{})} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?4500:1200}})
         }, deadline, tried.fullProposal?16000:5500);
         if (!r.ok) {
           tried.push(`${id}: ${r.status}`);
+          if(r.status===400&&strictSchema&&attempt===0){strictSchema=false;continue;}
           if (r.status===401) return null;
           if(r.status===403){blocked.set(id,Date.now()+3600000);break;}
           if (r.status===404 || r.status===429) blocked.set(id,Date.now()+(r.status===404 || /limit[:\s]+0\b/i.test(r.body.error?.message||'') ? 3600000 : 60000));

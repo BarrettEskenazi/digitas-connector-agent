@@ -215,7 +215,7 @@ footer{font-size:12px;color:var(--muted);display:grid;gap:4px}
         <div style="display:grid;gap:2px"><b id="chatTitle">Connector agent</b><span class="note" id="chatSub">Your role: Digitas coordinator</span></div>
         <span class="mode" id="mode">Checking AI…</span>
       </div>
-      <div class="picks"><form class="coform" id="coForm"><input id="co" type="text" placeholder="Company name, e.g. Nike" aria-label="Company name"><button class="btn small" type="submit">Build proposal</button></form><span class="eyebrow" id="picksLabel">Examples</span><div class="plist" id="plist"></div></div>
+      <div class="picks"><form class="coform" id="coForm"><input id="co" type="text" placeholder="Starbucks, 500k, advertising" aria-label="Company name"><button class="btn small" type="submit">Build proposal</button></form><span class="eyebrow" id="picksLabel">Examples</span><div class="plist" id="plist"></div></div>
       <div class="log" id="log" aria-live="polite"></div>
       <div class="composer">
         <div class="chips" id="chips"></div>
@@ -628,6 +628,7 @@ function enforceCapabilities(b){
  const kept=b.profile.assumptions.filter(a=>!(/\d/.test(a)&&/\b(members?|users?|customers?|revenue|conversion|baseline|rate|active|headcount)\b/i.test(a)));
  if(kept.length!==b.profile.assumptions.length)kept.push('The client must provide verified audience, conversion and revenue baselines before targets are finalized.');
  b.profile.assumptions=kept;
+ b.proposal.objectives=b.proposal.objectives.map(t=>t.replace(/\(?baseline\s*[:=]?\s*\$?\d[\d,.]*(?:\s*(?:%|k|m|visits|users|mentions))?\)?/ig,'baseline to be supplied by the client')).map(t=>/\d/.test(t)?'Proposed target to validate: '+t:t);
  const media=new Set(['Starcom','Zenith','Spark Foundry']);
  const creative=name=>/creative|content production|storytelling|creator production/i.test(name)&&!/paid media|media buying/.test(name.toLowerCase());
  b.workstreams.forEach(w=>{if(media.has(w.responsible)&&creative(w.name)){w.consulted=w.responsible;w.responsible='Digitas';w.accountable='Digitas';}});
@@ -662,7 +663,22 @@ function prepareCompany(name,brief,sector){
   b.lead={agency:'Digitas',why:'Digitas coordinates the client proposal and integrated program; Publicis sister agencies own specialist delivery work.'};
   b.workstreams.forEach(w=>w.accountable='Digitas');
   const supplied=feeFrom(brief);b.feeLocked=!!supplied&&/\bfee\b/i.test(brief)&&!/\bbudget\b/i.test(brief);
+  if(/\badvertising\b|\bads\b/i.test(brief)){
+    b.opportunity.need=`Run a focused advertising pilot for ${name}: reach priority audiences, test creative and measure qualified visits or purchases.`;
+    b.workstreams=[['Strategy, account coordination and measurement','Digitas',25],['Campaign concept and creative assets','Saatchi & Saatchi',30],['Paid media planning, buying and optimization','Starcom',30],['Landing journeys, tracking and conversion testing','Digitas',15]].map(([name,responsible,share])=>({name,responsible,share,accountable:'Digitas',consulted:responsible==='Digitas'?'Starcom':'Digitas',deliverables:responsible==='Saatchi & Saatchi'?['Approved campaign concept and message testing','Master creative plus channel adaptations']:responsible==='Starcom'?['Audience and channel allocation plan','Weekly buying, pacing and optimization report']:['Approved strategy and campaign measurement brief','Tracked customer journey and weekly decision report']}));
+    for(const agency of ['Saatchi & Saatchi','Starcom'])if(!b.ranking.some(r=>r.agency===agency))b.ranking.unshift({agency,fit:5,relationship:1,overlap:2,role:agency==='Starcom'?'Media planning and buying':'Campaign concept and creative',why:'Proposed specialist capability for this advertising pilot; no existing client relationship assumed.'});
+    b.ranking=b.ranking.slice(0,6);
+    b.finance={reservePct:10,mediaSpend:b.fee*1.25,productionSpend:b.fee*.125,clientReserve:b.fee*.125};
+  }
   ensureProposal(b);
+  if(/\badvertising\b|\bads\b/i.test(brief)){
+    b.proposal.title=`${name}: advertising campaign pilot`;
+    b.proposal.summary=`Digitas proposes a focused 12-week advertising pilot for ${name}. Start with one agreed market and audience, develop a campaign concept with Saatchi & Saatchi, and test paid channels with Starcom. Digitas coordinates the team, landing journeys and measurement. Review audience response, qualified visits and cost per conversion weekly before deciding whether to scale. The proposed budget covers agency delivery, paid media, external production and contingency; it is not the company's actual advertising budget.`;
+    b.proposal.scope=b.workstreams.map(w=>w.name);
+    b.proposal.exclusions=['National or global rollout beyond the agreed pilot market.','Unapproved talent rights, taxes and production exceeding the stated allowance.'];
+    b.plan[1]={phase:'Develop and approve campaign creative',weeks:'Weeks 3–5',owner:'Saatchi & Saatchi',actions:['Develop two campaign concepts for the agreed audience and market.','Approve master creative, channel adaptations, landing pages and tracking.'],deliverable:'Approved creative toolkit and launch checklist.',kpi:'Creative approved and tracking validated before media launch.'};
+    b.plan[2]={phase:'Launch and optimize paid advertising',weeks:'Weeks 6–10',owner:'Starcom',actions:['Launch agreed paid channels with weekly spend pacing and creative tests.','Reallocate spend against qualified visits and conversion results with Digitas.'],deliverable:'Live advertising pilot and weekly spend/performance reports.',kpi:'Agree cost-per-qualified-visit and conversion targets against client-supplied baselines.'};
+  }
   if(supplied&&!b.feeLocked){setProjectBudget(b,supplied);b.workstreams.forEach(w=>delete w.hours);ensureProposal(b);}
   syncContract(b);return b;
 }
@@ -783,7 +799,11 @@ function validateProposal(current,result){
   if(candidate.ranking.length<4)throw new Error('Insufficient Publicis candidates');
   candidate.lead=current.leadLocked?structuredClone(current.lead):{agency:'Digitas',why:agency(data.lead?.agency)==='Digitas'?text(data.lead?.why,500):'Digitas leads the client proposal and integrated coordination; selected Publicis sister agencies own specialist delivery.'};
   candidate.workstreams=rows(data.workstreams,3,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,...(Number.isFinite(w.hours)&&w.hours>=0&&w.hours<=100000?{hours:Math.round(w.hours)}:{}),...(Number.isFinite(w.costRate)&&w.costRate>0&&w.costRate<=2000?{costRate:Math.round(w.costRate)}:{}),deliverables:texts(w.deliverables,1,4)};});
-  if(!candidate.workstreams.some(w=>w.responsible==='Digitas')||!candidate.workstreams.some(w=>w.responsible===candidate.lead.agency))throw new Error('Missing delivery owner');
+  if(!candidate.workstreams.some(w=>w.responsible==='Digitas')){
+    if(candidate.workstreams.length<6){normalizeShares(candidate.workstreams,90);candidate.workstreams.push({name:'Program strategy, governance and measurement',responsible:'Digitas',accountable:candidate.lead.agency,consulted:candidate.workstreams[0].responsible,share:10,deliverables:['Approved strategy, RACI and campaign measurement brief','Weekly consolidated budget and performance report']});}
+    else{const row=candidate.workstreams[0];row.consulted=row.responsible;row.responsible='Digitas';row.name='Integrated strategy and '+row.name;}
+  }
+  if(!candidate.workstreams.some(w=>w.responsible===candidate.lead.agency))throw new Error('Missing delivery owner');
   if(candidate.workstreams.reduce((s,w)=>s+w.share,0)<=0)throw new Error('Empty allocation');
   if(candidate.workstreams.length===3){normalizeShares(candidate.workstreams,90);candidate.workstreams.push({name:'Program governance and measurement coordination',responsible:'Digitas',accountable:candidate.lead.agency,consulted:candidate.workstreams.find(w=>w.responsible!=='Digitas')?.responsible||candidate.lead.agency,share:10,deliverables:['Approved RACI, decision log and delivery calendar','Weekly consolidated KPI and budget report']});}
   normalizeShares(candidate.workstreams);
@@ -837,14 +857,15 @@ function addAgency(b,agency){
 function localAction(text){
   revision++; addMsg('user',text); $('#input').value='';
   let b=cur().board, reply='', aiInstruction=null;
-  const named=companyFrom(text);
+  const parsed=parseBrief(text),named=parsed.company;
   const agency=['Digitas',...Object.keys(AGENCIES)].find(a=>text.toLowerCase().includes(a.toLowerCase()));
   if(/^(hi|hello|hey|thanks|thank you)[!.\s]*$/i.test(text)) reply='Hi! Enter a company or ask me to change the lead, agencies, fee or shares.';
-  else if(named || (!agency && !/friction|fee|budget|lead|share|remove|add|build the full|make|change|focus|target|shorten|expand|campaign|proposal|plan|cost|weeks|more|less|instead/i.test(text) && text.split(/\s+/).length<=5) || !b){
-    const name=named||(/build the full/i.test(text)?'New client':text.slice(0,100));
+  else if(named || !b){
+    const name=named||'New client';
     cur().pick='own'; cur().source='builtin'; b=cur().board=prepareCompany(name,text); aiInstruction='Build the complete company proposal';
     reply=`Built a complete hypothetical draft for ${name}, based on general public knowledge. Confirm the scope and assumptions.`;
-  } else if(/friction|risk/i.test(text)) reply=b.risks.join('\n')+'\nAgree on scope, client ownership, approval rights and revenue before kickoff.';
+  } else if(/^(?:why|how|what|explain|tell me|can you explain)\b/i.test(text)&&!/friction|risk/i.test(text)){answerQuestion(text,b);return;}
+  else if(/friction|risk/i.test(text)) reply=b.risks.join('\n')+'\nAgree on scope, client ownership, approval rights and revenue before kickoff.';
   else if(/\bremove\b/i.test(text)&&agency){
     if(agency==='Digitas') reply='Digitas needs a responsible workstream in this prototype; its scope can be reduced instead.';
     else {
@@ -863,10 +884,18 @@ function localAction(text){
     addAgency(b,agency); const rows=b.workstreams.filter(w=>w.responsible===agency),others=b.workstreams.filter(w=>w.responsible!==agency);
     const total=Math.min(90,rows.reduce((s,w)=>s+w.share,0)+10);normalizeShares(rows,total);normalizeShares(others,100-total);syncContract(b);reply=`Increased ${agency}'s share; the total remains 100%.`;
   } else if(/\badd\b/i.test(text)&&agency){addAgency(b,agency);syncContract(b);reply=`${agency} is included in the task split and agreement.`;}
-  else if(/fee|budget/i.test(text)&&feeFrom(text)){if(/budget/i.test(text)){setProjectBudget(b,feeFrom(text));reply=`Set the total client budget to ${fmt(projectBudget(b).total)}, covering agency fees, media, production and contingency.`;}else{b.fee=feeFrom(text);b.feeLocked=true;b.feeNote='Agency fee supplied by you.';reply=`Set the agency fee to ${fmt(b.fee)}.`;}syncContract(b);}
+  else if(parsed.amount){if(!/\bfee\b/i.test(text)){setProjectBudget(b,feeFrom(text));reply=`Set the total client budget to ${fmt(projectBudget(b).total)}, covering agency fees, media, production and contingency.`;}else{b.fee=feeFrom(text);b.feeLocked=true;b.feeNote='Agency fee supplied by you.';reply=`Set the agency fee to ${fmt(b.fee)}.`;}syncContract(b);if(/advertising|ads|social|marketing|campaign/i.test(text)){b.brief=(b.brief||'')+'\nRequested change: '+text;aiInstruction=text;}}
   else { aiInstruction=text; b.brief=(b.brief||'')+'\nRequested change: '+text; reply=live?'I’m updating the complete proposal for your request.':'Live AI is unavailable. Your complete draft is preserved; you can edit fees, shares and delivery costs directly.'; }
   addMsg('ai',reply); renderPicks();render();chips();
   if(aiInstruction) tailor(aiInstruction);
+}
+async function answerQuestion(text,b){
+ const version=revision,t=addMsg('ai','Thinking through your proposal…','typing',false);
+ const x=projectBudget(b),team=[...new Set(b.workstreams.map(w=>w.responsible))];
+ let reply=`For ${b.opportunity.client}, Digitas coordinates ${team.join(', ')}. The proposed ${fmt(x.total)} budget includes ${fmt(x.fee)} agency fees, ${fmt(x.media)} paid media, ${fmt(x.production)} external production and ${fmt(x.contingency)} contingency. ${b.workstreams.map(w=>`${w.responsible} owns ${w.name.toLowerCase()}.`).join(' ')} These are planning estimates; actual returns need client data.`;
+ try{await liveReady;if(live){const result=await callAI(`You are a helpful Digitas coordinator. Answer the user's question directly and conversationally using this current proposal. Explain your reasoning and numbers when useful. Do not regenerate the proposal. Distinguish recommendations from facts; do not invent client revenue, relationships or guaranteed ROI. Return only JSON {"reply":"your answer"}. Question: ${text}\nProposal: ${JSON.stringify(b)}`);if(typeof result.reply==='string'&&result.reply.trim())reply=result.reply;}}
+ catch(_){}finally{t.remove();}
+ if(revision===version)addMsg('ai',reply);
 }
 function localCritique(){
   const b=cur().board;if(!b)return 'Enter a company first to build a complete draft.';
@@ -1015,10 +1044,22 @@ const BRAND_SECTOR={nike:"retail",adidas:"retail",puma:"retail","under armour":"
 function sectorOf(name){const n=name.toLowerCase();for(const [k,v] of Object.entries(BRAND_SECTOR)){ if(n.includes(k)) return v; }
  if(/bank|financ|insur|credit|capital|pay/.test(n)) return "finance"; if(/motor|auto|car/.test(n)) return "auto"; if(/hotel|air|cruise|resort|travel/.test(n)) return "travel";
  if(/health|pharma|clinic|care|med/.test(n)) return "health"; if(/burger|pizza|grill|cafe|coffee|kitchen|chicken/.test(n)) return "qsr"; if(/tech|soft|labs|\.ai|data|cloud/.test(n)) return "tech"; return null; }
-function feeFrom(t){const m=(t||"").replace(/,/g,"").match(/\$?\s*(\d+(?:\.\d+)?)\s*(k|m|mm|million|thousand|b|billion)?\b(?=[^.]*?(budget|fee|spend|\$)|\s*(budget|dollars))/i)||(t||"").replace(/,/g,"").match(/\$\s*(\d+(?:\.\d+)?)\s*(k|m|mm|million|thousand|b|billion)?/i);
- if(!m) return null; let v=parseFloat(m[1]); const u=(m[2]||"").toLowerCase(); if(u==="k"||u==="thousand") v*=1e3; else if(u==="m"||u==="mm"||u==="million") v*=1e6; else if(u==="b"||u==="billion") v*=1e9; return v>=1000?Math.round(v):null;}
+function feeFrom(t){
+ const text=(t||'').replace(/(\d),(?=\d{3}\b)/g,'$1');
+ const m=text.match(/\$\s*(\d+(?:\.\d+)?)\s*(million|thousand|billion|grand|mm|[kmb])?\b/i)||text.match(/\b(\d+(?:\.\d+)?)\s*(million|thousand|billion|grand|mm|[kmb])\b/i)||text.match(/\b(?:budget|fee|spend)(?:\s+(?:of|is|to|at))?\s*[:=]?\s*(\d{4,})(?!\d)/i)||text.match(/\b(\d{4,})\s*(?:budget|fee|dollars)\b/i);
+ if(!m)return null;const units={k:1e3,thousand:1e3,grand:1e3,m:1e6,mm:1e6,million:1e6,b:1e9,billion:1e9};
+ const value=Number(m[1])*(units[(m[2]||'').toLowerCase()]||1);return value>=1000&&value<=1e10?Math.round(value):null;
+}
 function companyFrom(t){const m=t.match(/(?:company called|called|named|client is|company is|company:)\s*([A-Za-z0-9][\w&.'’-]*(?:\s+[A-Za-z0-9][\w&.'’-]*){0,3}?)(?=\s+(?:that|which|who|needs|wants|is|with|and)\b|[.,]|$)/i);
  return m?m[1].trim():null;}
+function parseBrief(text){
+ const explicit=companyFrom(text);if(explicit)return {company:explicit,amount:feeFrom(text)};
+ const money=/\$?\b\d[\d,]*(?:\.\d+)?\s*(?:million|thousand|billion|grand|mm|[kmb])?\b/gi;
+ let rest=text.replace(money,' ').replace(/\b(?:advertising|advertisement|ads|marketing|campaign|social(?: media)?|media|digital|paid|branding|brand awareness|content|creators?|influencers?|budget|fee|spend|dollars|please)\b/gi,' ');
+ rest=rest.replace(/^(?:can you |could you |i want |i need |build |create |plan |a |an |for |with |of |and |to |do |run )+/i,'').replace(/\b(?:for|with|of|and|at|to|a|an)\b/gi,' ').replace(/[,;:]+/g,' ').replace(/\s+/g,' ').trim();
+ const command=/\b(?:why|how|what|explain|make|change|increase|decrease|set|instead|more|less|add|remove|lead|share|weeks|friction|risk|focus|target|shorten|expand|proposal|plan)\b/i.test(text);
+ return {company:!command&&rest&&rest.split(/\s+/).length<=5?rest:null,amount:feeFrom(text)};
+}
 function builtInPlan(name,text,sectorOverride){
   text=text||""; const social=/social|creator|influencer|tiktok|instagram|content/i.test(text);
   const key=sectorOverride||(social?"social":sectorOf(name+" "+text)), S=SECTORS[key||"cpg"], known=!!key;
@@ -1041,7 +1082,7 @@ function builtInPlan(name,text,sectorOverride){
     risks:["This is a draft from general knowledge; the real need may differ.","Another Publicis agency may already own part of this scope.","Revenue shares need sign-off from each agency's finance lead."]};
 }
 $("#coForm").addEventListener("submit",e=>{e.preventDefault();const n=$("#co").value.trim();if(!n) return;
-  pick("own"); const st=cur(); st.board=prepareCompany(companyFrom(n)||n,n); st.source="builtin";
+  pick("own"); const st=cur(); st.board=prepareCompany(parseBrief(n).company||n,n); st.source="builtin";
   addMsg("user",`Company: ${n}`); addMsg("ai",`Here's an instant hypothetical draft for ${n}. Your proposal, agency team, phased delivery plan and estimated costs/revenue are below.`); render(); chips(); tailor();
 });
 

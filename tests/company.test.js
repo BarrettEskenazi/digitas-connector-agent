@@ -6,3 +6,5 @@ test('unrelated search hits do not become invented company identities',async()=>
 test('lookup failures produce an honest provisional identity',async()=>{global.fetch=async()=>{throw new Error('offline');};const r=await lookupCompany('Unknown New Business Test');assert.equal(r.status,'unverified');assert.deepEqual(r.sources,[]);});
 
 test('homestay marketplaces use travel planning rather than generic technology',async()=>{global.fetch=async()=>({ok:true,json:async()=>({query:{pages:{2:{title:'Example Homestays',index:1,extract:'Example Homestays is a company operating an online marketplace for homestays.',fullurl:'https://en.wikipedia.org/wiki/Example_Homestays'}}}})});assert.equal((await lookupCompany('Example Homestays')).sector,'travel');});
+
+test('Starbucks resolves to its official coffeehouse profile without a network call',async()=>{global.fetch=()=>{throw new Error("unneeded network");};const r=await lookupCompany("Starbucks");assert.equal(r.status,"identified");assert.equal(r.sector,"qsr");assert.equal(r.sources[0].url,"https://about.starbucks.com/about-us/");});

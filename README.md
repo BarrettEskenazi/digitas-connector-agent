@@ -90,3 +90,5 @@ commands, 1/2/3 critique rounds, PepsiCo citations, manual share edits, External
 and ROI smoke tests, complete AI proposals, financial calculations, malformed proposals and stale replies. It runs in Chromium
 and WebKit at desktop and 390px phone width, checking JavaScript errors and
 page overflow. WebKit is Safari's engine; this is not a manual Safari-app test.
+
+Short briefs work in either input: `Starbucks, 500k, advertising` separates the company, total client budget and service. The supplied total stays fixed through AI generation. Advertising drafts include creative and paid media, with agency fees and outside spend separated. Follow-up questions explain the existing proposal without replacing it.
