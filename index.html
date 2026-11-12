@@ -856,17 +856,49 @@ function addAgency(b,agency){
     b.ranking.push({agency,fit:3,relationship:1,overlap:2,role:AGENCIES[agency],why:'Added at your request; confirm fit and scope.'});
   }
 }
-function localAction(text){
-  revision++; addMsg('user',text); $('#input').value='';
+function conversationHint(text){
+ const action=/\b(?:build|create|proposal|campaign|advertising|marketing|budget|fee|spend|lead|share|remove|add|change|make|set|increase|decrease|focus|target|shorten|expand)\b/i.test(text)||!!feeFrom(text)||!!companyFrom(text);
+ if(!action&&/^(?:(?:hi|hey|hello|yo|hiya|good morning|good afternoon|good evening)\b|how(?:'|’)?s it going|how are (?:you|u)\b|what(?:'|’)?s up\b|thanks\b|thank you\b)/i.test(text))return 'social';
+ if(companyFrom(text)||feeFrom(text)||/^(?:make|set|give|add|remove|increase|decrease|change|focus|target|shorten|expand|build the full)\b/i.test(text)||/friction|risk/i.test(text))return 'action';
+ // Questions and ordinary sentences go to the conversational agent. A name
+ // alone remains a convenient way to start a proposal, including offline.
+ if(/\?|\b(?:i|im|i'm|you|your|u|we|this|that|it|why|how|what|can|could|would|explain|tell|help|hows|going|doing|think|understand|sorry)\b/i.test(text))return 'conversation';
+ // Ambiguous names and sentences are interpreted by the conversational agent.
+ return 'conversation';
+}
+async function routeConversation(text){
+ const st=cur(),version=revision;addMsg('user',text);$('#input').value='';
+ const t=addMsg('ai','Thinking…','typing',false);
+ const b=st.board;
+ const context=b?{company:b.opportunity.client,proposal:b.proposal,team:b.workstreams.map(w=>({agency:w.responsible,work:w.name,share:w.share})),budget:projectBudget(b),research:b.research}:null;
+ const history=st.log.slice(-8).map(m=>({role:m.role,text:m.text.slice(0,600)}));
+ const fallbackCompany=!/\b(?:i|you|your|we|this|that|it|why|how|what|can|could|would|help|lol|ok|okay|yes|no|sure)\b|\?/i.test(text)?parseBrief(text).company:null;
+ let result={intent:fallbackCompany?'build':'answer',company:fallbackCompany||'',reply:b?`I can explain or revise the ${b.opportunity.client} proposal. What would you like to work through?`:'Hi! I can talk through your ideas or build a Digitas proposal. Tell me what you have in mind.'};
+ try{await liveReady;if(live){const r=await callAI(`You are a conversational proposal assistant for a Digitas coordinator. Understand natural language, greetings, frustration and follow-up questions. Reply directly and naturally using recent conversation and proposal context. Do not interpret small talk or questions as company names. Do not build or modify a proposal unless the user asks for that. If details are missing, ask one useful question. Classify the user's intent: answer (conversation, questions, explanation), build (explicit request for a new company proposal), update (explicit change to the existing proposal). Return only JSON {"intent":"answer|build|update","reply":"natural conversational response","company":"company name only when building, otherwise empty"}. No invented facts, actual client metrics, guaranteed returns or claimed live research. A company name alone is also a request to build a proposal. A company, budget and service is enough to build.\nContext: ${JSON.stringify(context).slice(0,8500)}\nRecent conversation: ${JSON.stringify(history)}\nUser: ${text}`);if(r&&typeof r.reply==='string'&&r.reply.trim())result=r;}}
+ catch(_){}finally{t.remove();}
+ if(mode!=='internal'||cur()!==st||revision!==version)return;
+ if(result.intent==='build'&&typeof result.company==='string'&&result.company.trim()&&result.company.length<=120){localAction(text,{routed:true,record:false,company:result.company.trim()});return;}
+ if(result.intent==='update'&&b){localAction(text,{routed:true,record:false,update:true});return;}
+ addMsg('ai',result.reply);
+}
+function localAction(text,options={}){
+ const hint=conversationHint(text);
+ if(!options.routed&&hint==='social'){
+   addMsg('user',text);$('#input').value='';
+   addMsg('ai',/thank/i.test(text)?'You’re welcome! What would you like to work on next?':"Hey! I’m here and ready to help. How’s your day going?");return;
+ }
+ if(!options.routed&&hint==='conversation'){routeConversation(text);return;}
+  revision++; if(options.record!==false)addMsg('user',text); $('#input').value='';
   let b=cur().board, reply='', aiInstruction=null;
-  const parsed=parseBrief(text),named=parsed.company;
+  const parsed=parseBrief(text),named=options.update?null:(options.company||parsed.company);
   const agency=['Digitas',...Object.keys(AGENCIES)].find(a=>text.toLowerCase().includes(a.toLowerCase()));
   if(/^(hi|hello|hey|thanks|thank you)[!.\s]*$/i.test(text)) reply='Hi! Enter a company or ask me to change the lead, agencies, fee or shares.';
-  else if(named || !b){
+  else if(named){
     const name=named||'New client';
     cur().pick='own'; cur().source='builtin'; b=cur().board=prepareCompany(name,text); aiInstruction='Build the complete company proposal';
     reply=`Built a complete hypothetical draft for ${name}, based on general public knowledge. Confirm the scope and assumptions.`;
-  } else if(/^(?:why|how|what|explain|tell me|can you explain)\b/i.test(text)&&!/friction|risk/i.test(text)){answerQuestion(text,b);return;}
+  } else if(!b){routeConversation(text);return;}
+  else if(/^(?:why|how|what|explain|tell me|can you explain)\b/i.test(text)&&!/friction|risk/i.test(text)){answerQuestion(text,b);return;}
   else if(/friction|risk/i.test(text)) reply=b.risks.join('\n')+'\nAgree on scope, client ownership, approval rights and revenue before kickoff.';
   else if(/\bremove\b/i.test(text)&&agency){
     if(agency==='Digitas') reply='Digitas needs a responsible workstream in this prototype; its scope can be reduced instead.';

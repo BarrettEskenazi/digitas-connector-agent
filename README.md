@@ -92,3 +92,5 @@ and WebKit at desktop and 390px phone width, checking JavaScript errors and
 page overflow. WebKit is Safari's engine; this is not a manual Safari-app test.
 
 Short briefs work in either input: `Starbucks, 500k, advertising` separates the company, total client budget and service. The supplied total stays fixed through AI generation. Advertising drafts include creative and paid media, with agency fees and outside spend separated. Follow-up questions explain the existing proposal without replacing it.
+
+Chat supports greetings, contextual questions and natural-language requests before and after a proposal. Conversation uses recent messages and proposal context to distinguish answering, building and updating. Small talk never creates a client or changes the board. `tests/chat.spec.js` checks this routing in Chromium and WebKit.

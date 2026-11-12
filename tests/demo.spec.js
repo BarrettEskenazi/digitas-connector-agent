@@ -18,6 +18,10 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
     const f=await page.evaluate(()=>financials(cur().board));assert.equal(f.rows.reduce((s,w)=>s+w.revenue,0),b.fee);assert.equal(f.contribution,b.fee-f.cost);
     assert.equal(await page.locator('#full-proposal').count(),1);assert.equal(await page.locator('#delivery-plan').count(),1);assert.equal(await page.locator('#cost-breakdown').count(),1);assert.equal(await page.locator('#project-budget').count(),1);const budget=await page.evaluate(()=>projectBudget(cur().board));assert.equal(budget.total,budget.fee+budget.media+budget.production+budget.contingency);
    }
+   for(const greeting of ["hi hows it going?","hi, how’s it going?","how are you?","what's up","thanks for the help"]){
+    await page.fill('#input',greeting);await page.click('#send');assert.equal(await page.evaluate(()=>cur().board),null);
+    assert.equal(await page.locator('#log .typing').count(),0);assert.match(await page.locator('#log .msg').last().textContent(),/Hey|welcome/);
+   }
    for(const name of ['Nike','Chase','Toyota','Acme Widgets','rentahuman ai']){await page.locator('#co').fill(name);await page.locator('#coForm button').click();await check();assert.equal(await page.evaluate(()=>cur().board.opportunity.client),name);}
    async function send(text){await page.locator('#input').fill(text);await page.locator('#send').click();await check();
     if(text==='Add MSL')assert(await page.evaluate(()=>cur().board.workstreams.some(w=>w.responsible==='MSL')));
@@ -39,6 +43,9 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
    assert.equal(await page.evaluate(()=>cur().board.opportunity.client),'Starbucks');
    assert.equal(await page.evaluate(()=>projectBudget(cur().board).total),750000);
    const beforeQuestion=await page.evaluate(()=>JSON.stringify(cur().board));
+   await send("hi hows it going?");
+   assert.equal(await page.evaluate(()=>JSON.stringify(cur().board)),beforeQuestion);
+
    await send('why did you choose Starcom?');
    assert.equal(await page.evaluate(()=>JSON.stringify(cur().board)),beforeQuestion);
    await send('Ok next is a company called rentahuman ai that needs social media marketing for their ai labor marketplace with 500,000 budget');
