@@ -34,7 +34,7 @@ function parseJSON(text) {
 async function tryProvider(provider, key, deadline, tried) {
   if (!key) return null;
   const groq = provider === 'groq';
-  const preferred = groq ? ['llama-3.3-70b-versatile','openai/gpt-oss-120b','llama-3.1-8b-instant'] : ['gemini-3.5-flash-lite','gemini-3.1-flash-lite'];
+  const preferred = groq ? ['openai/gpt-oss-20b','llama-3.1-8b-instant','llama-3.3-70b-versatile','openai/gpt-oss-120b'] : ['gemini-3.5-flash-lite','gemini-3.1-flash-lite'];
   const override = groq ? process.env.GROQ_MODEL : process.env.GEMINI_MODEL;
   let available;
   try { available = await models(provider, key, deadline); } catch (_) { available = preferred; }
@@ -47,11 +47,12 @@ async function tryProvider(provider, key, deadline, tried) {
       try {
         const r = await request(groq ? `${GROQ}/chat/completions` : `${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
           method:'POST', headers:groq ? {'Content-Type':'application/json',Authorization:`Bearer ${key}`} : {'Content-Type':'application/json','x-goog-api-key':key},
-          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?6500:1200} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?6500:1200}})
+          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?4500:1200,...(model.startsWith('openai/gpt-oss-')?{reasoning_effort:'low'}:{})} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?4500:1200}})
         }, deadline, tried.fullProposal?16000:5500);
         if (!r.ok) {
           tried.push(`${id}: ${r.status}`);
-          if ([401,403].includes(r.status)) return null;
+          if (r.status===401) return null;
+          if(r.status===403){blocked.set(id,Date.now()+3600000);break;}
           if (r.status===404 || r.status===429) blocked.set(id,Date.now()+(r.status===404 || /limit[:\s]+0\b/i.test(r.body.error?.message||'') ? 3600000 : 60000));
           if (r.status===503 && attempt===0 && deadline-Date.now()>350) { await new Promise(resolve=>setTimeout(resolve,250)); continue; }
           break;

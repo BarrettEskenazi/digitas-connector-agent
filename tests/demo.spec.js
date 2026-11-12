@@ -11,7 +11,7 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
   try{for(const width of [1280,390]){
    const page=await browser.newPage({viewport:{width,height:900}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
    await page.route('**/api/agent',route=>route.fulfill({status:503,contentType:'application/json',body:'{"ok":false,"code":"unavailable"}'}));
-   await page.goto(`http://127.0.0.1:${server.address().port}`);
+   await page.goto(`http://127.0.0.1:${server.address().port}`,{waitUntil:'domcontentloaded'});
    async function check(){const b=await page.evaluate(()=>cur().board);assert.equal(b.workstreams.reduce((s,w)=>s+w.share,0),100);assert.equal(b.contract.length,6);assert(b.workstreams.some(w=>w.responsible==='Digitas'));assert(b.ranking.length>=4&&b.ranking.length<=6);assert(b.workstreams.every(w=>typeof w.responsible==='string'&&typeof w.accountable==='string'));assert.equal(await page.locator('#log .err').count(),0);
     assert(b.proposal.summary.length>100);assert.equal(b.plan.length,4);assert(b.plan.every(p=>p.actions.length>=2&&p.deliverable&&p.kpi));
     assert(b.workstreams.every(w=>w.deliverables.length&&Number.isFinite(w.hours)&&Number.isFinite(w.costRate)));
@@ -38,6 +38,18 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
    await page.click('#tab-external');await page.click('#tab-roi');await page.click('#tab-internal');
    assert.deepEqual(errors,[]);
    console.log(`${engine.name()} ${width}px: offline scenarios passed`);
+   // Verified identity also drives the fallback when live generation is unavailable.
+   await page.unroute('**/api/agent');
+   await page.route('**/api/agent',route=>{
+    const body=route.request().method()==='POST'?route.request().postDataJSON():{};
+    if(body.action==='research')return route.fulfill({json:{company:{name:'RentAHuman',summary:'AI agents hire humans who perform real-world tasks.',sector:'social',status:'identified',basis:'Public source',sources:[{title:'RentAHuman — About',url:'https://rentahuman.ai/about'}]}}});
+    return route.fulfill({status:503,json:{code:'unavailable'}});
+   });
+   await page.evaluate(()=>live=false);await page.fill('#co','rentahuman ai');await page.click('#coForm button');
+   await page.waitForFunction(()=>cur().board.research?.status==='identified');await check();
+   assert.match(await page.evaluate(()=>cur().board.proposal.title),/worker activation/);
+   assert(await page.evaluate(()=>cur().board.workstreams.every(w=>w.responsible!=='Publicis Commerce')));
+   assert.match(await page.evaluate(()=>cur().board.profile.business),/humans who perform/);
    // Entire proposal may change team, fee and scope; edits reject stale replies.
    await page.unroute('**/api/agent');
    await page.route('**/api/agent',async route=>{
@@ -57,6 +69,11 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
    assert.equal(await page.locator('#company-identification a').count(),1);
    assert.match(await page.locator('#full-proposal').textContent(),/Nike: member discovery pilot/);
    assert.match(await page.evaluate(()=>cur().board.contract[1].text),/Publicis Sapient/);
+   const guarded=await page.evaluate(()=>{
+    const input=structuredClone(cur().board);input.workstreams.push({name:'Creative production',responsible:'Starcom',accountable:'Digitas',consulted:'Digitas',share:10,deliverables:['Campaign assets']});input.plan[1].phase='Creative production';input.plan[1].owner='Starcom';input.plan[1].kpi='Baseline NPS 70 -> target 75';
+    const next=validateProposal(cur().board,{board:input});return {owner:next.workstreams.find(w=>w.name==='Creative production').responsible,phaseOwner:next.plan[1].owner,kpi:next.plan[1].kpi};
+   });assert.equal(guarded.owner,'Digitas');assert.equal(guarded.phaseOwner,'Digitas');assert(!guarded.kpi.includes('70'));
+
    await page.locator('#passThrough').fill('50000');await page.locator('#passThrough').press('Tab');
    assert.equal(await page.evaluate(()=>financials(cur().board).investment),325000);
    await page.locator('.cost-hours').first().fill('100');await page.locator('.cost-hours').first().press('Tab');

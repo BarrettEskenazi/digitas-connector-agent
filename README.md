@@ -20,7 +20,7 @@ remain available, with the PepsiCo example and its two sources preserved.
    shown as provisional, with a request for an official website/description;
    the app does not claim an invented company identity is verified.
 2. Build a Digitas-led proposal using the identified business as evidence.
-   Groq is preferred, Gemini is fallback. The full response includes strategy,
+   Fast free-tier Groq models are preferred, with low reasoning effort for GPT-OSS; Gemini is fallback. The full response includes strategy,
    scope, agency recommendations, deliverables, a phased plan, KPIs and fees.
    Source-backed company descriptions are retained instead of overwritten by
    model guesses. The user can explicitly change the lead afterward.
@@ -43,8 +43,8 @@ Local drafts, commands, all chips and 1–3 critique rounds remain usable when A
 or lookup is unavailable. Invalid or stale AI answers cannot overwrite edits.
 Full responses accept wrapped/unwrapped JSON, normalize known agency aliases,
 and validate Publicis-only agencies, Digitas scope, scores, RACI and four phases.
-Shares normalize to 100%. Concise three-stream replies receive an explicit
-Digitas governance workstream. Lookup has a 4-second server / 5.5-second client
+Shares normalize to 100%. Capability checks keep creative production with Digitas rather than media-buying agencies and remove invented numeric baselines from KPI arrows. Concise three-stream replies receive an explicit
+Digitas governance workstream. An identified sector also updates the offline draft; RentAHuman receives a concrete task-buyer and human-worker activation plan even if AI fails. Full generation is capped at 4,500 output tokens. Lookup has a 4-second server / 5.5-second client
 limit. Full AI requests have a 25-second server / 28-second client limit, below
 Vercel's 60-second function limit. No paid search, database, service or build step
 is required; Wikipedia lookups and maintained company profiles need no new key.
