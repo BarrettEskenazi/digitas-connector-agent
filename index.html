@@ -764,8 +764,16 @@ function validateProposal(current,result){
   const p=data.proposal;
   if(!Number.isInteger(p?.durationWeeks)||p.durationWeeks<2||p.durationWeeks>52)throw new Error('Invalid duration');
   candidate.proposal={title:text(p.title,180),summary:text(p.summary,1600),objectives:texts(p.objectives,2),scope:texts(p.scope,3),exclusions:texts(p.exclusions,1),durationWeeks:p.durationWeeks};
-  candidate.ranking=rows(data.ranking,4,6).map(r=>{const name=agency(r.agency);if(name==='Digitas')throw new Error('Ranking must be sisters');const out={agency:name,role:text(r.role,180),why:text(r.why,500)};for(const k of ['fit','relationship','overlap']){if(!Number.isInteger(r[k])||r[k]<1||r[k]>5)throw new Error('Invalid score');out[k]=r[k];}return out;});
-  if(new Set(candidate.ranking.map(r=>r.agency)).size!==candidate.ranking.length)throw new Error('Duplicate ranking');
+  candidate.ranking=[];
+  for(const r of rows(data.ranking,0,12)){
+    let name;try{name=agency(r?.agency);}catch(_){continue;}
+    if(name==='Digitas'||candidate.ranking.some(x=>x.agency===name))continue;
+    const out={agency:name,role:text(r.role,180),why:text(r.why,500)};
+    for(const k of ['fit','relationship','overlap'])out[k]=Math.max(1,Math.min(5,Math.round(Number(r[k])||1)));
+    candidate.ranking.push(out);if(candidate.ranking.length===6)break;
+  }
+  for(const r of current.ranking){if(candidate.ranking.length>=4)break;if(!candidate.ranking.some(x=>x.agency===r.agency))candidate.ranking.push({...r,relationship:1,why:'Additional Publicis candidate to assess; not automatically included in the proposed delivery team.'});}
+  if(candidate.ranking.length<4)throw new Error('Insufficient Publicis candidates');
   candidate.lead=current.leadLocked?structuredClone(current.lead):{agency:'Digitas',why:agency(data.lead?.agency)==='Digitas'?text(data.lead?.why,500):'Digitas leads the client proposal and integrated coordination; selected Publicis sister agencies own specialist delivery.'};
   candidate.workstreams=rows(data.workstreams,3,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,...(Number.isFinite(w.hours)&&w.hours>=0&&w.hours<=100000?{hours:Math.round(w.hours)}:{}),...(Number.isFinite(w.costRate)&&w.costRate>0&&w.costRate<=2000?{costRate:Math.round(w.costRate)}:{}),deliverables:texts(w.deliverables,1,4)};});
   if(!candidate.workstreams.some(w=>w.responsible==='Digitas')||!candidate.workstreams.some(w=>w.responsible===candidate.lead.agency))throw new Error('Missing delivery owner');
