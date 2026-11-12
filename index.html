@@ -402,7 +402,7 @@ function renderInternal(){
   const contract=(b.contract||[]).map((c,i)=>`<div class="cl"><h3>${i+1}. ${esc(c.title)}</h3><p>${esc(c.text)}</p></div>`).join("");
   $("#board").innerHTML=`
   <div class="progress"><span class="on">1 · Rank partners</span><span class="${b.workstreams?.length?"on":""}">2 · Split tasks</span><span class="${b.fee?"on":""}">3 · Split revenue</span><span class="${b.contract?.length?"on":""}">4 · Contract</span></div>
-  <section class="support"><div class="support-head"><span class="eyebrow">Opportunity</span><div class="client-line"><b>${esc(b.opportunity?.client)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":"Example"}</span></div><p class="note">${esc(b.opportunity?.source)} · Need: ${esc(b.opportunity?.need)}</p></div>
+  <section class="support"><div class="support-head"><span class="eyebrow">Opportunity</span><div class="client-line"><b>${esc(b.opportunity?.client)}</b><span class="tag ${cur().source==="ai"?"ai":""}">${cur().source==="ai"?"Generated live":cur().source==="builtin"?"Instant draft":"Example"}</span></div><p class="note">${esc(b.opportunity?.source)} · Need: ${esc(b.opportunity?.need)}</p></div>
     ${b.lead?`<div class="decision"><b>Lead agency:</b> ${esc(b.lead.agency)}. ${esc(b.lead.why)}</div>`:""}
     ${(()=>{const ex=INT_EXAMPLES.find(x=>x.id===cur().pick);return ex&&ex.sources&&cur().source!=="ai"?`<div class="sources"><span class="eyebrow">Public sources</span>${ex.sources.map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${esc(t)}</a>`).join("")}</div>`:"";})()}</section>
   <section class="support"><div class="support-head"><span class="eyebrow">Step 1</span><h2>Which sister agencies to bring in</h2><span class="addon">Add-on: ranking model</span></div>
@@ -653,7 +653,74 @@ $("#tab-roi").addEventListener("click",()=>setMode("roi"));
 $("#form").addEventListener("submit",e=>{e.preventDefault();send($("#input").value);});
 $("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send($("#input").value);}});
 $("#refine").addEventListener("click",refine);
-$("#coForm").addEventListener("submit",e=>{e.preventDefault();const n=$("#co").value.trim();if(!n||busy) return;pick("own");send(`Company: ${n}. Build the full breakdown: which Publicis sister agencies to bring in, who does what, the revenue split and the agreement.`);});
+/* ---------- Built-in instant plan (works with no AI) ---------- */
+const SECTORS={
+ cpg:{label:"consumer packaged goods",need:"Grow brand demand and sell-through across retail and e-commerce, with social-first content",lead:"Starcom",fee:6000000,
+  rank:[["Starcom",5,2,3,"Media planning and buying","Media is the biggest lever for a mass consumer brand."],["Publicis Commerce",5,2,2,"Retail and commerce media","Most sales happen at retailers, so retail media matters."],["Epsilon",4,2,2,"Data, identity and audiences","Builds first-party audiences the brand doesn't own."],["Saatchi & Saatchi",4,2,4,"Brand creative","Big brand campaigns; overlaps with Digitas on content."],["Spark Foundry",3,1,4,"Second media agency","Overlaps with the lead media agency; not recommended."]],
+  ws:[["Media planning and buying","Starcom",40],["Retail and commerce media","Publicis Commerce",20],["Social-first content and creators","Digitas",20],["Audience data and identity","Epsilon",15],["Measurement and reporting","Digitas",5]]},
+ retail:{label:"retail and apparel",need:"Turn members and shoppers into repeat buyers across stores, app and site",lead:"Digitas",fee:4000000,
+  rank:[["Epsilon",5,2,2,"Loyalty data and identity","Member data drives personalized offers."],["Publicis Commerce",5,2,2,"Retail and marketplace media","Sales across own site and marketplaces."],["Starcom",4,2,3,"Paid media","Reach for launches and seasonal moments."],["Publicis Sapient",4,1,1,"App and e-commerce platform","Upgrades the app and site experience."],["Saatchi & Saatchi",3,2,4,"Brand creative","Only if a big brand campaign is in scope."]],
+  ws:[["Loyalty, CRM and personalization","Digitas",35],["Member data and identity","Epsilon",20],["Paid media","Starcom",20],["Commerce and marketplace media","Publicis Commerce",15],["App and site improvements","Publicis Sapient",10]]},
+ qsr:{label:"restaurants and food service",need:"Bring guests back more often through the app, loyalty and local media",lead:"Digitas",fee:5000000,
+  rank:[["Epsilon",5,2,2,"Guest data and identity","Links app, loyalty and in-store data."],["Starcom",5,2,3,"Media planning and buying","National and local reach for promotions."],["Publicis Sapient",4,1,1,"App and ordering platform","Ordering and app experience drive repeat visits."],["Leo",4,2,4,"Brand creative","Brand campaigns; overlaps with Digitas on content."],["Performics",3,1,3,"Search and performance","Local search and delivery-app performance."]],
+  ws:[["Loyalty, app CRM and personalization","Digitas",35],["Media planning and buying","Starcom",30],["Guest data and identity","Epsilon",15],["App and ordering improvements","Publicis Sapient",15],["Local search and performance","Performics",5]]},
+ finance:{label:"financial services",need:"Win and keep customers with personalized, compliant journeys across digital channels",lead:"Digitas",fee:5000000,
+  rank:[["Epsilon",5,2,2,"Customer data and identity","Targeting depends on clean, compliant customer data."],["Publicis Sapient",5,2,1,"Digital platforms and AI","Banks and insurers need platform and AI work."],["Performics",4,2,3,"Search and performance","Most customers compare and apply online."],["Starcom",4,1,3,"Media planning and buying","Brand and product reach."],["MSL",3,1,1,"Public relations","Trust and reputation moments."]],
+  ws:[["Customer journeys and CRM","Digitas",35],["Platforms and AI","Publicis Sapient",25],["Customer data and identity","Epsilon",15],["Search and performance","Performics",15],["Media planning and buying","Starcom",10]]},
+ tech:{label:"technology and consumer electronics",need:"Drive launches, subscriptions and retention with connected media, data and content",lead:"Starcom",fee:6000000,
+  rank:[["Starcom",5,2,3,"Media planning and buying","Launch moments need large paid reach."],["Performics",4,2,3,"Search and performance","Buyers research heavily before purchase."],["Epsilon",4,2,2,"Data and identity","Subscriber and device data power retention."],["Publicis Commerce",4,1,2,"Retail and marketplace media","Devices sell through big retailers and marketplaces."],["Saatchi & Saatchi",3,1,4,"Brand creative","Only for big brand campaigns."]],
+  ws:[["Media planning and buying","Starcom",35],["Social content and launch creative","Digitas",20],["Search and performance","Performics",15],["Subscriber data and retention","Epsilon",15],["Retail and marketplace media","Publicis Commerce",15]]},
+ auto:{label:"automotive",need:"Move shoppers from research to dealer visit with connected media, data and personalization",lead:"Starcom",fee:8000000,
+  rank:[["Starcom",5,2,3,"Media planning and buying","National launches and regional dealer media."],["Epsilon",5,2,2,"In-market shopper data","Finds and follows in-market buyers."],["Performics",4,2,3,"Search and performance","Most car shopping starts with search."],["Publicis Sapient",4,1,1,"Configurator and dealer platforms","Online buying and dealer tools."],["Leo",3,1,4,"Brand creative","Brand campaigns; overlaps with Digitas on content."]],
+  ws:[["Media planning and buying","Starcom",35],["Shopper journeys and CRM","Digitas",25],["In-market data and identity","Epsilon",15],["Search and performance","Performics",15],["Configurator and dealer tools","Publicis Sapient",10]]},
+ travel:{label:"travel and hospitality",need:"Fill rooms and seats by bringing back members and lifting direct bookings",lead:"Digitas",fee:4000000,
+  rank:[["Epsilon",5,2,2,"Member data and identity","Loyalty members drive direct bookings."],["Starcom",4,2,3,"Media planning and buying","Seasonal and destination reach."],["Performics",4,2,3,"Search and performance","Travelers search and compare online."],["Publicis Sapient",4,1,1,"Booking platform","Booking flow and app experience."],["Saatchi & Saatchi",3,1,4,"Brand creative","Only for big brand campaigns."]],
+  ws:[["Loyalty and personalized offers","Digitas",35],["Media planning and buying","Starcom",25],["Member data and identity","Epsilon",15],["Search and performance","Performics",15],["Booking platform improvements","Publicis Sapient",10]]},
+ health:{label:"health and wellness",need:"Reach the right patients or consumers with compliant, personalized education and offers",lead:"Digitas",fee:4000000,
+  rank:[["Epsilon",5,2,2,"Privacy-safe audiences","Health targeting needs compliant data."],["Starcom",4,2,3,"Media planning and buying","Awareness and education reach."],["MSL",4,1,1,"Public relations","Health news and trust moments."],["Performics",4,1,3,"Search and performance","People search symptoms and products."],["Publicis Sapient",3,1,1,"Digital platforms","Patient or member portals."]],
+  ws:[["Personalized education and CRM","Digitas",35],["Media planning and buying","Starcom",25],["Privacy-safe audiences","Epsilon",15],["Search and performance","Performics",15],["Public relations","MSL",10]]}
+};
+const BRAND_SECTOR={nike:"retail",adidas:"retail",puma:"retail","under armour":"retail",lululemon:"retail",target:"retail",walmart:"retail",costco:"retail","home depot":"retail",lowe:"retail",macy:"retail",nordstrom:"retail",sephora:"retail",ulta:"retail",gap:"retail",zara:"retail","h&m":"retail",ikea:"retail",amazon:"retail",kohl:"retail",
+ pepsi:"cpg",coca:"cpg",coke:"cpg","procter":"cpg","p&g":"cpg",unilever:"cpg",nestle:"cpg",kraft:"cpg",mondelez:"cpg",mars:"cpg",hershey:"cpg",colgate:"cpg","l'oreal":"cpg",loreal:"cpg","red bull":"cpg",monster:"cpg","general mills":"cpg",kellogg:"cpg",heineken:"cpg","anheuser":"cpg",budweiser:"cpg",diageo:"cpg",
+ mcdonald:"qsr",starbucks:"qsr","burger king":"qsr",wendy:"qsr",popeyes:"qsr",chipotle:"qsr","taco bell":"qsr",kfc:"qsr",subway:"qsr",domino:"qsr","pizza hut":"qsr","chick-fil-a":"qsr","dunkin":"qsr",sweetgreen:"qsr",
+ chase:"finance",jpmorgan:"finance","bank of america":"finance",citi:"finance","wells fargo":"finance",amex:"finance","american express":"finance",visa:"finance",mastercard:"finance",paypal:"finance",capital:"finance",fidelity:"finance",schwab:"finance",geico:"finance","state farm":"finance",progressive:"finance",allstate:"finance",robinhood:"finance","h&r block":"finance",
+ apple:"tech",samsung:"tech",google:"tech",microsoft:"tech",sony:"tech",dell:"tech",hp:"tech",intel:"tech",nvidia:"tech",netflix:"tech",spotify:"tech",meta:"tech",verizon:"tech","at&t":"tech","t-mobile":"tech",uber:"tech",doordash:"tech",airbnb:"travel",
+ toyota:"auto",ford:"auto","general motors":"auto",gm:"auto",honda:"auto",tesla:"auto",bmw:"auto",mercedes:"auto",hyundai:"auto",kia:"auto",nissan:"auto",volkswagen:"auto",stellantis:"auto",jeep:"auto",
+ marriott:"travel",hilton:"travel",hyatt:"travel",delta:"travel",united:"travel",southwest:"travel",expedia:"travel","royal caribbean":"travel",carnival:"travel","norwegian":"travel",disney:"travel",
+ pfizer:"health",cvs:"health",walgreens:"health","johnson":"health",cigna:"health",aetna:"health",kaiser:"health",humana:"health",moderna:"health",abbvie:"health",hims:"health"};
+function sectorOf(name){const n=name.toLowerCase();for(const [k,v] of Object.entries(BRAND_SECTOR)){ if(n.includes(k)) return v; }
+ if(/bank|financ|insur|credit|capital|pay/.test(n)) return "finance"; if(/motor|auto|car/.test(n)) return "auto"; if(/hotel|air|cruise|resort|travel/.test(n)) return "travel";
+ if(/health|pharma|clinic|care|med/.test(n)) return "health"; if(/burger|pizza|grill|cafe|coffee|kitchen|chicken/.test(n)) return "qsr"; if(/tech|soft|labs|\.ai|data|cloud/.test(n)) return "tech"; return null; }
+function builtInPlan(name){
+  const key=sectorOf(name), S=SECTORS[key||"cpg"], known=!!key;
+  const ranking=S.rank.map(([agency,fit,relationship,overlap,role,why])=>({agency,fit,relationship,overlap,role,why}));
+  const workstreams=S.ws.map(([n,resp,share])=>({name:n,responsible:resp,accountable:resp===S.lead?resp:(resp==="Digitas"?"Digitas":S.lead),consulted:resp==="Digitas"?ranking[0].agency:"Digitas",share}));
+  const team=[...new Set([S.lead,...S.ws.map(w=>w[1])])];
+  const others=team.filter(a=>a!==S.lead);
+  return {
+    opportunity:{client:name,source:`Built-in draft${known?` for a ${S.label} brand`:""}. Hypothetical opportunity, based on general public knowledge; check every detail.`,need:S.need},
+    ranking, lead:{agency:S.lead,why:S.lead==="Digitas"?"The core need is customer experience, CRM and personalization, which is Digitas's strength.":`Media is the biggest piece of work, so ${S.lead} leads. Digitas owns social, content and personalization and connects them to media and data.`},
+    workstreams, fee:S.fee, feeNote:"Illustrative fee only, not a reported number. Edit it to match the real opportunity.",
+    contract:[
+     {title:"Project scope and objectives",text:`Agencies: ${team.join(", ")}. Client: ${name}. Objective: ${S.need.charAt(0).toLowerCase()+S.need.slice(1)}. Deliverables: per the task split. Timeline: [start] to [end].`},
+     {title:"Lead agency and responsibilities",text:`${S.lead} is lead agency. Each workstream's responsible and accountable agency follows the task split. Work outside it needs a written change request.`},
+     {title:"Client ownership and revenue allocation",text:`${S.lead} manages the ${name} relationship; ${others.join(", ")} join planning meetings for their workstreams. Fees follow the revenue table. Case studies and awards credit every agency with a responsible role.`},
+     {title:"Communication and decision-making",text:"One weekly joint status meeting and one shared plan. The accountable agency makes the final call on its workstream. The client sees one team and one point of contact."},
+     {title:"Dispute resolution",text:"Scope disagreements go to the lead agency's account director within two business days, then to the agencies' managing directors, then to the Publicis client lead."},
+     {title:"Approvals and sign-off",text:`Signed by an account lead and a finance lead from each agency before work starts. Signatures: ${team.map(a=>`____ (${a})`).join(" ")}.`}],
+    kickoff:["Confirm the real scope and who owns the client today","Agree on the task split and sign the template","Set one shared KPI dashboard","Book the weekly joint status meeting"],
+    risks:["This is a draft from general knowledge; the real need may differ.","Another Publicis agency may already own part of this scope.","Revenue shares need sign-off from each agency's finance lead."]};
+}
+$("#coForm").addEventListener("submit",async e=>{e.preventDefault();const n=$("#co").value.trim();if(!n||busy) return;
+  pick("own"); const st=cur(); const ask=`Company: ${n}. Build the full breakdown: which Publicis sister agencies to bring in, who does what, the revenue split and the agreement.`;
+  st.board=builtInPlan(n); st.source="builtin"; st.messages.push({role:"user",content:ask}); addMsg("user",ask); render(); chips();
+  if(!live){ addMsg("ai",`Here's an instant draft for ${n}. Edit the fee or shares on the right.`); return; }
+  addMsg("ai",`Here's an instant draft for ${n}. Live AI is now tailoring it; this can take up to a minute.`); lock(true);
+  const t=addMsg("ai","Tailoring with live AI…","typing",false);
+  try{ const r=await callAI(chatPrompt()); t.remove(); const reply=r?.reply||"Updated with live AI."; st.messages.push({role:"assistant",content:reply}); addMsg("ai",reply); if(r?.board){ merge(r.board); st.source="ai"; render(); } chips(); }
+  catch(err){ t.remove(); addMsg("ai","Live AI is busy right now, so you're seeing the built-in draft. It's complete: edit the fee or shares, or try again in a minute."); }
+  finally{ lock(false); }
+});
 
 pick("pepsico");
 async function callAI(prompt){
