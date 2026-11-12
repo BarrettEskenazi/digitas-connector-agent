@@ -1,3 +1,4 @@
+const {lookupCompany} = require('../lib/company');
 // Optional free-tier enhancement. Credentials never leave the server.
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
 const GROQ = 'https://api.groq.com/openai/v1';
@@ -73,6 +74,10 @@ module.exports = async (req,res) => {
   if (req.method!=='POST') { res.setHeader('Allow','GET, POST'); return res.status(405).json({error:'Use POST'}); }
   let body=req.body;
   if (typeof body==='string') { try { body=JSON.parse(body); } catch (_) { body=null; } }
+  if(body?.action==='research'){
+    if(typeof body.company!=='string'||!body.company.trim()||body.company.length>120)return res.status(400).json({code:'bad_request',error:'Enter a company name'});
+    return res.status(200).json({company:await lookupCompany(body.company.trim())});
+  }
   if (typeof body?.prompt!=='string' || !body.prompt.trim() || body.prompt.length>16000) return res.status(400).json({code:'bad_request',error:'Invalid prompt'});
   if (!groq&&!gemini) return res.status(503).json({code:'no_key',error:'Live tailoring is unavailable; use the instant draft.',tried:[]});
   const deadline=Date.now()+(body.fullProposal===true?25000:TOTAL_MS), tried=[];

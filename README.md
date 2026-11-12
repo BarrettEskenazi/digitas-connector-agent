@@ -4,42 +4,50 @@ Student prototype; not a Digitas product. Do not enter confidential information.
 The dark, self-contained `index.html` runs without a build step or database. Host on
 Vercel Hobby. Use only Groq / Gemini free-tier accounts; do not enable paid billing.
 
-## Demo behavior
+## Digitas coordinator workflow
 
-Internal company drafts, chat commands, all four chips, and 1–3 critique rounds
-work locally even when AI is unavailable. Drafts are hypothetical and based on
-general public knowledge. Verify assumptions before using them. Editing a share
-redistributes the remainder to keep 100%; fees, team changes and shares update
-the agreement. R/A appears when an agency holds both roles. PepsiCo source links
-are retained after changes; the original example and citations remain intact.
+The default workspace starts empty and explicitly identifies the user as a
+Digitas coordinator. Publicis Groupe is the parent network; sister agencies
+are delivery partners. Enter a company name in the company box or chat; a goal
+and budget are optional. Existing examples and the separate prototype ROI model
+remain available, with the PepsiCo example and its two sources preserved.
 
-Typing a company produces a complete proposal: company/audience brief, objectives,
-scope/exclusions, recommended agency team and ranking, workstream deliverables,
-four delivery phases with owners and KPIs, estimated costs, agency revenue,
-contribution and a six-section agreement. The instant draft is usable offline;
-Groq generates the full company-specific strategy, team, scope, pilot fee and plan.
-User-supplied fees are preserved. Unknown companies are explicitly marked as
-requiring business-model verification. This is not live company research.
+1. Identify the company. `POST /api/agent` with
+   `{"action":"research","company":"Nike"}` runs without AI credentials.
+   `lib/company.js` supplies cited, maintained identities for Nike, Chase,
+   Toyota and RentAHuman, and searches the free Wikipedia API for other
+   matching company names. Unrelated matches are rejected. A missing match is
+   shown as provisional, with a request for an official website/description;
+   the app does not claim an invented company identity is verified.
+2. Build a Digitas-led proposal using the identified business as evidence.
+   Groq is preferred, Gemini is fallback. The full response includes strategy,
+   scope, agency recommendations, deliverables, a phased plan, KPIs and fees.
+   Source-backed company descriptions are retained instead of overwritten by
+   model guesses. The user can explicitly change the lead afterward.
+3. Show the complete client budget: agency delivery fees + paid media +
+   external production/tools + client contingency. A supplied **budget** is
+   treated as the total client investment; an explicitly supplied **fee** is
+   treated as agency fee revenue. The total-budget control scales the four
+   components together. Each component and agency fee is also editable.
+4. Split agency fees by workstream and show hours × estimated internal cost,
+   delivery reserve and contribution before overhead/tax. Media, suppliers and
+   client contingency are excluded from agency fee shares. The six-section
+   agreement and full-copy export follow the current plan and finances.
 
-Full AI proposals are validated before replacing the draft: required sections,
-Publicis-only agencies, 4–6 ranked candidates, one R/A/C per workstream, Digitas
-scope, reasonable scores, four phases and valid fees. Shares normalize to 100%.
-Both wrapped and unwrapped complete JSON responses are accepted; blank phase
-separators are ignored. Invalid or stale answers preserve the full draft and any
-user edits. Consultation and phase owners stay within the delivery team.
+All proposed scopes, rates, targets, fee splits and project budgets are estimates;
+they are not the company's actual spend or quoted agency prices. Relationships
+and scope must be confirmed before use. Public-source identity is distinct from
+an assumed marketing opportunity. No confidential information should be entered.
 
-Costs are transparent working estimates: editable hours × cost/hour for each
-workstream, a shared delivery reserve, and optional pass-through media/third-party
-spend. The app calculates fee revenue, costs and contribution before overhead/tax
-for the team and agencies. Pass-through spend is separate from agency fee revenue.
-No actual agency rates or margins are claimed. Copy exports the full proposal.
-
-The full-proposal client deadline is 28 seconds and the server deadline is 25
-seconds, below Vercel's 60-second limit. Small requests retain 19/17-second client/
-server deadlines. Full proposals allow up to 6,500 output tokens and a 16-second
-provider attempt. Groq is preferred (up to 18 seconds), with Gemini fallback.
-A 503 retries once after 250ms within the total budget. Unavailable/zero-quota
-models are temporarily skipped within a warm function instance.
+Local drafts, commands, all chips and 1–3 critique rounds remain usable when AI
+or lookup is unavailable. Invalid or stale AI answers cannot overwrite edits.
+Full responses accept wrapped/unwrapped JSON, normalize known agency aliases,
+and validate Publicis-only agencies, Digitas scope, scores, RACI and four phases.
+Shares normalize to 100%. Concise three-stream replies receive an explicit
+Digitas governance workstream. Lookup has a 4-second server / 5.5-second client
+limit. Full AI requests have a 25-second server / 28-second client limit, below
+Vercel's 60-second function limit. No paid search, database, service or build step
+is required; Wikipedia lookups and maintained company profiles need no new key.
 
 ## Vercel settings
 
@@ -71,7 +79,8 @@ npm test
 npm run test:demo
 ```
 
-`tests/api.test.js` covers configuration/input validation, Groq preference,
+`tests/api.test.js` and `tests/company.test.js` cover company identification,
+rejection of unrelated search results, lookup failure, configuration/input validation, Groq preference,
 Gemini fallback, one 503 retry, unavailable/zero-quota model cooldown, invalid
 JSON and timeout of a hung response body. No real keys are used.
 
