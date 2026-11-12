@@ -44,7 +44,7 @@ or lookup is unavailable. Invalid or stale AI answers cannot overwrite edits.
 Full responses accept wrapped/unwrapped JSON, normalize known agency aliases,
 and validate Publicis-only agencies, Digitas scope, scores, RACI and four phases.
 Shares normalize to 100%. Capability checks keep creative production with Digitas rather than media-buying agencies and remove invented numeric baselines from KPI arrows. Concise three-stream replies receive an explicit
-Digitas governance workstream. An identified sector also updates the offline draft; RentAHuman receives a concrete task-buyer and human-worker activation plan even if AI fails. Full generation is capped at 4,500 output tokens. Lookup has a 4-second server / 5.5-second client
+Digitas governance workstream. An identified sector also updates the offline draft; RentAHuman receives a concrete task-buyer and human-worker activation plan even if AI fails. Full generation uses constrained JSON-schema output on supported Groq GPT-OSS models to prevent misplaced or missing sections; it allows 3,500 output tokens there and 4,500 on fallback models. Lookup has a 4-second server / 5.5-second client
 limit. Full AI requests have a 25-second server / 28-second client limit, below
 Vercel's 60-second function limit. No paid search, database, service or build step
 is required; Wikipedia lookups and maintained company profiles need no new key.

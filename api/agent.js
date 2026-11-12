@@ -1,3 +1,4 @@
+const PROPOSAL_FORMAT = require('../lib/proposal-schema');
 const {lookupCompany} = require('../lib/company');
 // Optional free-tier enhancement. Credentials never leave the server.
 const GEMINI = 'https://generativelanguage.googleapis.com/v1beta';
@@ -47,7 +48,7 @@ async function tryProvider(provider, key, deadline, tried) {
       try {
         const r = await request(groq ? `${GROQ}/chat/completions` : `${GEMINI}/models/${encodeURIComponent(model)}:generateContent`, {
           method:'POST', headers:groq ? {'Content-Type':'application/json',Authorization:`Bearer ${key}`} : {'Content-Type':'application/json','x-goog-api-key':key},
-          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?4500:1200,...(model.startsWith('openai/gpt-oss-')?{reasoning_effort:'low'}:{})} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?4500:1200}})
+          body:JSON.stringify(groq ? {model,messages:[{role:'user',content:tried.prompt}],response_format:tried.fullProposal&&model.startsWith('openai/gpt-oss-')?PROPOSAL_FORMAT:{type:'json_object'},temperature:0.3,max_completion_tokens:tried.fullProposal?(model.startsWith('openai/gpt-oss-')?3500:4500):1200,...(model.startsWith('openai/gpt-oss-')?{reasoning_effort:'low'}:{})} : {contents:[{role:'user',parts:[{text:tried.prompt}]}],generationConfig:{responseMimeType:'application/json',temperature:0.3,maxOutputTokens:tried.fullProposal?4500:1200}})
         }, deadline, tried.fullProposal?16000:5500);
         if (!r.ok) {
           tried.push(`${id}: ${r.status}`);
