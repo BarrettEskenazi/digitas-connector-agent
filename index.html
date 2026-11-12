@@ -637,6 +637,7 @@ function enforceCapabilities(b){
   if(baseline){const metric=baseline[1].replace(/\$?\d[\d,.]*(?:\s*(?:%|x|k|m))?/ig,'').trim();p.kpi=`${metric?metric+': ':''}Proposed target ${baseline[2]}; client must supply the current baseline.`;}
   if(media.has(p.owner)&&creative(p.phase))p.owner='Digitas';
   if(/→|->/.test(p.kpi)){const parts=p.kpi.split(/→|->/);const metric=parts[0].replace(/\bbaseline\b/ig,'').replace(/[\d$%,.]+/g,'').trim();p.kpi=`${metric}: proposed ${parts.slice(1).join(' ')}; baseline to be supplied by the client.`;}
+  p.kpi=p.kpi.replace(/\bbaseline\s+[^:;]*:\s*\$?\d[\d,.]*(?:\s*(?:%|k|m))?(?:\s*visits)?(?:\/month)?/ig,'Client to provide baseline');
   p.kpi=p.kpi.replace(/\bbaseline\s+([^\d;→]*?)\$?\d[\d,.]*(?:\s*(?:%|x|k|m))?/ig,'Baseline for $1 to be supplied by the client');
  });
  b.ranking.forEach(r=>{if(media.has(r.agency)&&creative(r.role)){r.role=AGENCIES[r.agency];r.why='Media planning and buying partner; keep creative production with Digitas or a selected creative agency.';}});
@@ -781,7 +782,7 @@ function validateProposal(current,result){
   const text=(v,max=1000)=>{if(typeof v!=='string'||!v.trim()||v.length>max)throw new Error('Invalid proposal text');return v.trim();};
   const texts=(v,min,max=6)=>{if(!Array.isArray(v)||v.length<min||v.length>max)throw new Error('Incomplete proposal list');return v.map(x=>text(x,500));};
   const rows=(v,min,max)=>{const out=Array.isArray(v)?v.filter(x=>x!==''&&x!==null):v;if(!Array.isArray(out)||out.length<min||out.length>max)throw new Error('Incomplete proposal rows');return out;};
-  const agency=v=>{if(typeof v!=='string')throw new Error('Invalid agency');const name=v.normalize('NFKC').replace(/\s+/g,' ').trim();const normalized=({'Leo Burnett':'Leo','Sapient':'Publicis Sapient','Saatchi and Saatchi':'Saatchi & Saatchi'})[name]||name;if(!validAgency(normalized))throw new Error('Invalid agency');return normalized;};
+  const agency=(v,selectOne=false)=>{if(typeof v!=='string')throw new Error('Invalid agency');let name=v.normalize('NFKC').replace(/\s+/g,' ').trim();if(selectOne&&name.includes(','))name=name.split(',')[0].trim();const normalized=({'Leo Burnett':'Leo','Sapient':'Publicis Sapient','Saatchi and Saatchi':'Saatchi & Saatchi'})[name]||name;if(!validAgency(normalized))throw new Error('Invalid agency');return normalized;};
   const candidate=structuredClone(current);
   candidate.opportunity.need=text(data.opportunity?.need,500);
   candidate.profile={business:current.research?.status==='identified'?current.research.summary:text(data.profile?.business,800),audience:text(data.profile?.audience,500),assumptions:texts(data.profile?.assumptions,2)};
@@ -799,7 +800,7 @@ function validateProposal(current,result){
   for(const r of current.ranking){if(candidate.ranking.length>=4)break;if(!candidate.ranking.some(x=>x.agency===r.agency))candidate.ranking.push({...r,relationship:1,why:'Additional Publicis candidate to assess; not automatically included in the proposed delivery team.'});}
   if(candidate.ranking.length<4)throw new Error('Insufficient Publicis candidates');
   candidate.lead=current.leadLocked?structuredClone(current.lead):{agency:'Digitas',why:agency(data.lead?.agency)==='Digitas'?text(data.lead?.why,500):'Digitas leads the client proposal and integrated coordination; selected Publicis sister agencies own specialist delivery.'};
-  candidate.workstreams=rows(data.workstreams,3,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted),share:w.share,...(Number.isFinite(w.hours)&&w.hours>=0&&w.hours<=100000?{hours:Math.round(w.hours)}:{}),...(Number.isFinite(w.costRate)&&w.costRate>0&&w.costRate<=2000?{costRate:Math.round(w.costRate)}:{}),deliverables:texts(w.deliverables,1,4)};});
+  candidate.workstreams=rows(data.workstreams,3,6).map(w=>{if(!Number.isFinite(w.share)||w.share<0||w.share>100)throw new Error('Invalid share');return {name:text(w.name,180),responsible:agency(w.responsible),accountable:agency(w.accountable),consulted:agency(w.consulted,true),share:w.share,...(Number.isFinite(w.hours)&&w.hours>=0&&w.hours<=100000?{hours:Math.round(w.hours)}:{}),...(Number.isFinite(w.costRate)&&w.costRate>0&&w.costRate<=2000?{costRate:Math.round(w.costRate)}:{}),deliverables:texts(w.deliverables,1,4)};});
   if(!candidate.workstreams.some(w=>w.responsible==='Digitas')){
     if(candidate.workstreams.length<6){normalizeShares(candidate.workstreams,90);candidate.workstreams.push({name:'Program strategy, governance and measurement',responsible:'Digitas',accountable:candidate.lead.agency,consulted:candidate.workstreams[0].responsible,share:10,deliverables:['Approved strategy, RACI and campaign measurement brief','Weekly consolidated budget and performance report']});}
     else{const row=candidate.workstreams[0];row.consulted=row.responsible;row.responsible='Digitas';row.name='Integrated strategy and '+row.name;}
