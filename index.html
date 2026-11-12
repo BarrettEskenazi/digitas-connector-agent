@@ -625,10 +625,16 @@ function applyIdentifiedContext(b,research){
   }
 }
 function enforceCapabilities(b){
+ const kept=b.profile.assumptions.filter(a=>!(/\d/.test(a)&&/\b(members?|users?|customers?|revenue|conversion|baseline|rate|active|headcount)\b/i.test(a)));
+ if(kept.length!==b.profile.assumptions.length)kept.push('The client must provide verified audience, conversion and revenue baselines before targets are finalized.');
+ b.profile.assumptions=kept;
  const media=new Set(['Starcom','Zenith','Spark Foundry']);
  const creative=name=>/creative|content production|storytelling|creator production/i.test(name)&&!/paid media|media buying/.test(name.toLowerCase());
  b.workstreams.forEach(w=>{if(media.has(w.responsible)&&creative(w.name)){w.consulted=w.responsible;w.responsible='Digitas';w.accountable='Digitas';}});
- b.plan.forEach(p=>{if(media.has(p.owner)&&creative(p.phase))p.owner='Digitas';
+ b.plan.forEach(p=>{
+  const baseline=p.kpi.match(/\bbaseline\s*[:=]?\s*(.*?)\s*(?:;|,|–|—|→|->)\s*target\s*[:=]?\s*(.*)/i);
+  if(baseline){const metric=baseline[1].replace(/\$?\d[\d,.]*(?:\s*(?:%|x|k|m))?/ig,'').trim();p.kpi=`${metric?metric+': ':''}Proposed target ${baseline[2]}; client must supply the current baseline.`;}
+  if(media.has(p.owner)&&creative(p.phase))p.owner='Digitas';
   if(/→|->/.test(p.kpi)){const parts=p.kpi.split(/→|->/);const metric=parts[0].replace(/\bbaseline\b/ig,'').replace(/[\d$%,.]+/g,'').trim();p.kpi=`${metric}: proposed ${parts.slice(1).join(' ')}; baseline to be supplied by the client.`;}
   p.kpi=p.kpi.replace(/\bbaseline\s+([^\d;→]*?)\$?\d[\d,.]*(?:\s*(?:%|x|k|m))?/ig,'Baseline for $1 to be supplied by the client');
  });

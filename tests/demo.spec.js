@@ -70,9 +70,9 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
    assert.match(await page.locator('#full-proposal').textContent(),/Nike: member discovery pilot/);
    assert.match(await page.evaluate(()=>cur().board.contract[1].text),/Publicis Sapient/);
    const guarded=await page.evaluate(()=>{
-    const input=structuredClone(cur().board);input.workstreams.push({name:'Creative production',responsible:'Starcom',accountable:'Digitas',consulted:'Digitas',share:10,deliverables:['Campaign assets']});input.plan[1].phase='Creative production';input.plan[1].owner='Starcom';input.plan[1].kpi='Baseline NPS 70 -> target 75';
-    const next=validateProposal(cur().board,{board:input});return {owner:next.workstreams.find(w=>w.name==='Creative production').responsible,phaseOwner:next.plan[1].owner,kpi:next.plan[1].kpi};
-   });assert.equal(guarded.owner,'Digitas');assert.equal(guarded.phaseOwner,'Digitas');assert(!guarded.kpi.includes('70'));
+    const input=structuredClone(cur().board);input.workstreams.push({name:'Creative production',responsible:'Starcom',accountable:'Digitas',consulted:'Digitas',share:10,deliverables:['Campaign assets']});input.plan[1].phase='Creative production';input.plan[1].owner='Starcom';input.plan[1].kpi='Baseline: NPS 70; Target: 75';input.profile.assumptions.push('The company has 3M active members');
+    const next=validateProposal(cur().board,{board:input});return {owner:next.workstreams.find(w=>w.name==='Creative production').responsible,phaseOwner:next.plan[1].owner,kpi:next.plan[1].kpi,assumptions:next.profile.assumptions};
+   });assert.equal(guarded.owner,'Digitas');assert.equal(guarded.phaseOwner,'Digitas');assert(!guarded.kpi.includes('70'));assert(!guarded.assumptions.some(a=>a.includes('3M')));
 
    await page.locator('#passThrough').fill('50000');await page.locator('#passThrough').press('Tab');
    assert.equal(await page.evaluate(()=>financials(cur().board).investment),325000);
