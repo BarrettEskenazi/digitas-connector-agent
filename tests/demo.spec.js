@@ -48,7 +48,7 @@ const html = fs.readFileSync(require('node:path').join(__dirname,'../index.html'
      b.lead={agency:'Publicis Sapient',why:'Owns the commerce platform work in this proposal.'};b.fee=275000;
      b.workstreams[0].name='Athlete-led member activation';b.workstreams.forEach(w=>w.accountable='Publicis Sapient');return b;
     });
-    await new Promise(r=>setTimeout(r,300));board.plan.splice(1,0,'');await route.fulfill({json:board});
+    await new Promise(r=>setTimeout(r,300));board.plan.splice(1,0,'');board.workstreams=[board.workstreams[0],board.workstreams[1],board.workstreams[4]];board.lead.agency='Sapient';board.workstreams[2].responsible='Sapient';await route.fulfill({json:board});
    });
    await page.evaluate(()=>live=true);await page.locator('#co').fill('Nike');await page.locator('#coForm button').click();
    await page.waitForFunction(()=>cur().source==='ai');await check();
